@@ -1759,6 +1759,22 @@
                 <input type="text" class="form-input" id="s-currency" placeholder="₹" maxlength="5">
               </div>
             </div>
+          <div class="form-section">
+            <div class="form-section-title">Data Backup & Cross-Device Sync</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
+              Export your invoices and company profile to transfer them to another browser, device, or phone easily.
+            </p>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary" onclick="exportDataBackup()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Export Backup (.json)
+              </button>
+              <input type="file" id="import-backup-file" accept=".json" style="display:none;" onchange="importDataBackup(event)">
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('import-backup-file').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Import Backup (.json)
+              </button>
+            </div>
           </div>
 
           <div class="form-actions">
@@ -2205,123 +2221,72 @@ async function handleAuth(e) {
 
   try {
     if (isAuthMode === 'signup') {
-      const confirmPassword = document.getElementById('auth-confirm-password').value;
-      const name = (document.getElementById('auth-name').value || '').trim();
-
-      if (password !== confirmPassword) {
+      const confirmPasswordInput = document.getElementById('auth-confirm-password');
+      const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
+      if (confirmPassword && password !== confirmPassword) {
         throw new Error('Passwords do not match. Please enter the password twice correctly.');
       }
-
-      let signedInCloud = false;
-      if (supabaseClient) {
-        try {
-          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-          const result = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: name || rawInput } }
-          });
-          if (!result.error && result.data?.user) {
-            state.user = {
-              id: result.data.user.id,
-              email: result.data.user.email,
-              name: name || rawInput
-            };
-            signedInCloud = true;
-          }
-        } catch (sErr) {
-          console.warn('Supabase cloud signup fallback to local session:', sErr);
-        }
-      }
-
-      if (!signedInCloud) {
-        const usersJSON = localStorage.getItem('registered_users');
-        const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-        let user = users.find(u =>
-          (u.email && u.email.toLowerCase() === identifier) ||
-          (u.username && u.username.toLowerCase() === identifier) ||
-          (u.name && u.name.toLowerCase() === identifier)
-        );
-
-        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-        if (!user) {
-          user = {
-            id: userId,
-            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-            username: identifier,
-            name: name || rawInput,
-            passwordHash: hashPassword(password),
-            createdAt: new Date().toISOString()
-          };
-          users.push(user);
-        } else {
-          user.passwordHash = hashPassword(password);
-          const idx = users.findIndex(u => u.id === user.id);
-          if (idx >= 0) users[idx] = user;
-        }
-        localStorage.setItem('registered_users', JSON.stringify(users));
-        state.user = { id: user.id, email: user.email, name: user.name };
-      }
-
-      localStorage.setItem('current_user_session', JSON.stringify(state.user));
-      showToast('Account created successfully! Welcome!', 'success');
-      await initApp();
-
-    } else {
-      // SIGN IN MODE
-      let signedInCloud = false;
-      if (supabaseClient) {
-        try {
-          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-          const result = await supabaseClient.auth.signInWithPassword({ email, password });
-          if (!result.error && result.data?.user) {
-            state.user = {
-              id: result.data.user.id,
-              email: result.data.user.email,
-              name: result.data.user.user_metadata?.full_name || rawInput
-            };
-            signedInCloud = true;
-          }
-        } catch (sErr) {
-          console.warn('Supabase cloud signin fallback to local session:', sErr);
-        }
-      }
-
-      if (!signedInCloud) {
-        const usersJSON = localStorage.getItem('registered_users');
-        const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-        let user = users.find(u =>
-          (u.email && u.email.toLowerCase() === identifier) ||
-          (u.username && u.username.toLowerCase() === identifier) ||
-          (u.name && u.name.toLowerCase() === identifier)
-        );
-
-        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-        if (!user) {
-          user = {
-            id: userId,
-            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-            username: identifier,
-            name: rawInput,
-            passwordHash: hashPassword(password),
-            createdAt: new Date().toISOString()
-          };
-          users.push(user);
-        } else {
-          user.passwordHash = hashPassword(password);
-          const idx = users.findIndex(u => u.id === user.id);
-          if (idx >= 0) users[idx] = user;
-        }
-        localStorage.setItem('registered_users', JSON.stringify(users));
-        state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
-      }
-
-      localStorage.setItem('current_user_session', JSON.stringify(state.user));
-      showToast('Signed in successfully!', 'success');
-      await initApp();
     }
+
+    let signedInCloud = false;
+    if (supabaseClient && SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
+        const result = isAuthMode === 'signup'
+          ? await supabaseClient.auth.signUp({ email, password })
+          : await supabaseClient.auth.signInWithPassword({ email, password });
+
+        if (!result.error && result.data?.user) {
+          state.user = {
+            id: result.data.user.id,
+            email: result.data.user.email,
+            name: result.data.user.user_metadata?.full_name || rawInput
+          };
+          signedInCloud = true;
+        }
+      } catch (sErr) {
+        console.warn('Cloud auth notice:', sErr);
+      }
+    }
+
+    if (!signedInCloud) {
+      const usersJSON = localStorage.getItem('registered_users');
+      const users = usersJSON ? JSON.parse(usersJSON) : [];
+
+      let user = users.find(u =>
+        (u.email && u.email.toLowerCase() === identifier) ||
+        (u.username && u.username.toLowerCase() === identifier) ||
+        (u.name && u.name.toLowerCase() === identifier)
+      );
+
+      const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
+      const displayName = (document.getElementById('auth-name')?.value || '').trim() || rawInput;
+
+      if (!user) {
+        user = {
+          id: userId,
+          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+          username: identifier,
+          name: displayName,
+          passwordHash: hashPassword(password),
+          createdAt: new Date().toISOString()
+        };
+        users.push(user);
+      } else {
+        user.passwordHash = hashPassword(password);
+        if (displayName && displayName !== identifier) user.name = displayName;
+        const idx = users.findIndex(u => u.id === user.id);
+        if (idx >= 0) users[idx] = user;
+      }
+
+      localStorage.setItem('registered_users', JSON.stringify(users));
+      state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
+    }
+
+    localStorage.setItem('current_user_session', JSON.stringify(state.user));
+    showToast(`Welcome back, ${state.user.name || 'User'}! Signed in successfully.`, 'success');
+    await initApp();
+
   } catch (err) {
     showToast(err.message || 'Authentication failed', 'error');
   } finally {
@@ -2453,6 +2418,60 @@ async function loadSettings() {
   if (saved && !localStorage.getItem(getSettingsKey())) {
     localStorage.setItem(getSettingsKey(), JSON.stringify(state.settings));
   }
+}
+
+// ============================================
+// DATA BACKUP & SYNC FUNCTIONS
+// ============================================
+function exportDataBackup() {
+  if (!state.user) {
+    showToast('Please sign in first to export backup data', 'error');
+    return;
+  }
+  const backupObj = {
+    version: '1.0',
+    exportDate: new Date().toISOString(),
+    user: state.user,
+    settings: state.settings || {},
+    invoices: state.invoices || []
+  };
+  const jsonStr = JSON.stringify(backupObj, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const username = (state.user.name || state.user.email || 'user').split('@')[0].replace(/[^a-z0-9]/gi, '_');
+  a.download = `invoice_maker_backup_${username}_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exported successfully!', 'success');
+}
+
+function importDataBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data || typeof data !== 'object') throw new Error('Invalid backup file format');
+
+      if (data.settings) {
+        state.settings = data.settings;
+        localStorage.setItem(getSettingsKey(), JSON.stringify(state.settings));
+      }
+      if (Array.isArray(data.invoices)) {
+        state.invoices = data.invoices;
+        localStorage.setItem(getInvoicesKey(), JSON.stringify(state.invoices));
+      }
+      showToast('Backup imported successfully! Account updated.', 'success');
+      populateSettingsForm();
+      renderDashboard();
+    } catch (err) {
+      showToast('Failed to import backup: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ============================================

@@ -155,123 +155,72 @@ async function handleAuth(e) {
 
   try {
     if (isAuthMode === 'signup') {
-      const confirmPassword = document.getElementById('auth-confirm-password').value;
-      const name = (document.getElementById('auth-name').value || '').trim();
-
-      if (password !== confirmPassword) {
+      const confirmPasswordInput = document.getElementById('auth-confirm-password');
+      const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
+      if (confirmPassword && password !== confirmPassword) {
         throw new Error('Passwords do not match. Please enter the password twice correctly.');
       }
-
-      let signedInCloud = false;
-      if (supabaseClient) {
-        try {
-          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-          const result = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: name || rawInput } }
-          });
-          if (!result.error && result.data?.user) {
-            state.user = {
-              id: result.data.user.id,
-              email: result.data.user.email,
-              name: name || rawInput
-            };
-            signedInCloud = true;
-          }
-        } catch (sErr) {
-          console.warn('Supabase cloud signup fallback to local session:', sErr);
-        }
-      }
-
-      if (!signedInCloud) {
-        const usersJSON = localStorage.getItem('registered_users');
-        const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-        let user = users.find(u =>
-          (u.email && u.email.toLowerCase() === identifier) ||
-          (u.username && u.username.toLowerCase() === identifier) ||
-          (u.name && u.name.toLowerCase() === identifier)
-        );
-
-        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-        if (!user) {
-          user = {
-            id: userId,
-            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-            username: identifier,
-            name: name || rawInput,
-            passwordHash: hashPassword(password),
-            createdAt: new Date().toISOString()
-          };
-          users.push(user);
-        } else {
-          user.passwordHash = hashPassword(password);
-          const idx = users.findIndex(u => u.id === user.id);
-          if (idx >= 0) users[idx] = user;
-        }
-        localStorage.setItem('registered_users', JSON.stringify(users));
-        state.user = { id: user.id, email: user.email, name: user.name };
-      }
-
-      localStorage.setItem('current_user_session', JSON.stringify(state.user));
-      showToast('Account created successfully! Welcome!', 'success');
-      await initApp();
-
-    } else {
-      // SIGN IN MODE
-      let signedInCloud = false;
-      if (supabaseClient) {
-        try {
-          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-          const result = await supabaseClient.auth.signInWithPassword({ email, password });
-          if (!result.error && result.data?.user) {
-            state.user = {
-              id: result.data.user.id,
-              email: result.data.user.email,
-              name: result.data.user.user_metadata?.full_name || rawInput
-            };
-            signedInCloud = true;
-          }
-        } catch (sErr) {
-          console.warn('Supabase cloud signin fallback to local session:', sErr);
-        }
-      }
-
-      if (!signedInCloud) {
-        const usersJSON = localStorage.getItem('registered_users');
-        const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-        let user = users.find(u =>
-          (u.email && u.email.toLowerCase() === identifier) ||
-          (u.username && u.username.toLowerCase() === identifier) ||
-          (u.name && u.name.toLowerCase() === identifier)
-        );
-
-        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-        if (!user) {
-          user = {
-            id: userId,
-            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-            username: identifier,
-            name: rawInput,
-            passwordHash: hashPassword(password),
-            createdAt: new Date().toISOString()
-          };
-          users.push(user);
-        } else {
-          user.passwordHash = hashPassword(password);
-          const idx = users.findIndex(u => u.id === user.id);
-          if (idx >= 0) users[idx] = user;
-        }
-        localStorage.setItem('registered_users', JSON.stringify(users));
-        state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
-      }
-
-      localStorage.setItem('current_user_session', JSON.stringify(state.user));
-      showToast('Signed in successfully!', 'success');
-      await initApp();
     }
+
+    let signedInCloud = false;
+    if (supabaseClient && SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
+        const result = isAuthMode === 'signup'
+          ? await supabaseClient.auth.signUp({ email, password })
+          : await supabaseClient.auth.signInWithPassword({ email, password });
+
+        if (!result.error && result.data?.user) {
+          state.user = {
+            id: result.data.user.id,
+            email: result.data.user.email,
+            name: result.data.user.user_metadata?.full_name || rawInput
+          };
+          signedInCloud = true;
+        }
+      } catch (sErr) {
+        console.warn('Cloud auth notice:', sErr);
+      }
+    }
+
+    if (!signedInCloud) {
+      const usersJSON = localStorage.getItem('registered_users');
+      const users = usersJSON ? JSON.parse(usersJSON) : [];
+
+      let user = users.find(u =>
+        (u.email && u.email.toLowerCase() === identifier) ||
+        (u.username && u.username.toLowerCase() === identifier) ||
+        (u.name && u.name.toLowerCase() === identifier)
+      );
+
+      const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
+      const displayName = (document.getElementById('auth-name')?.value || '').trim() || rawInput;
+
+      if (!user) {
+        user = {
+          id: userId,
+          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+          username: identifier,
+          name: displayName,
+          passwordHash: hashPassword(password),
+          createdAt: new Date().toISOString()
+        };
+        users.push(user);
+      } else {
+        user.passwordHash = hashPassword(password);
+        if (displayName && displayName !== identifier) user.name = displayName;
+        const idx = users.findIndex(u => u.id === user.id);
+        if (idx >= 0) users[idx] = user;
+      }
+
+      localStorage.setItem('registered_users', JSON.stringify(users));
+      state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
+    }
+
+    localStorage.setItem('current_user_session', JSON.stringify(state.user));
+    showToast(`Welcome back, ${state.user.name || 'User'}! Signed in successfully.`, 'success');
+    await initApp();
+
   } catch (err) {
     showToast(err.message || 'Authentication failed', 'error');
   } finally {
