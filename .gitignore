@@ -1,0 +1,6 @@
+Antigravity IDE/
+node_modules/
+*.log
+.DS_Store
+*.pdf
+ui-ux-skill/

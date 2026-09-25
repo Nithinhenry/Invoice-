@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Professional invoice maker with GST support, PDF export, and invoice management">
+  <title>Invoice Maker — Professional Invoicing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/invoice-templates.css">
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- DELETE CONFIRMATION MODAL -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h2>Delete Invoice</h2>
+    <p>Are you sure you want to delete this invoice? This action cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDeleteInvoice()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE PICKER MODAL -->
+<div class="modal-overlay" id="template-modal">
+  <div class="modal" style="max-width:740px;">
+    <h2>Choose Invoice Template</h2>
+    <p>Select a design template for your invoice PDF</p>
+    <div class="template-grid">
+      <div class="template-card active" data-template="classic" onclick="selectTemplate('classic')">
+        <div class="template-preview classic-preview">
+          <div class="tp-header" style="background:#7c3aed;"></div>
+          <div class="tp-line"></div><div class="tp-line short"></div>
+          <div class="tp-table"></div>
+          <div class="tp-line short right"></div>
+        </div>
+        <span class="template-name">Classic Purple</span>
+        <span class="template-check">✓</span>
+      </div>
+      <div class="template-card" data-template="blue-modern" onclick="selectTemplate('blue-modern')">
+        <div class="template-preview blue-preview">
+          <div class="tp-header" style="background:#1e40af;"></div>
+          <div class="tp-line"></div><div class="tp-line short"></div>
+          <div class="tp-table" style="border-color:#1e40af;"></div>
+          <div class="tp-line short right"></div>
+        </div>
+        <span class="template-name">Blue Modern</span>
+        <span class="template-check">✓</span>
+      </div>
+      <div class="template-card" data-template="minimal-dark" onclick="selectTemplate('minimal-dark')">
+        <div class="template-preview dark-preview">
+          <div class="tp-header" style="background:#111827;"></div>
+          <div class="tp-line"></div><div class="tp-line short"></div>
+          <div class="tp-table" style="border-color:#374151;"></div>
+          <div class="tp-line short right"></div>
+        </div>
+        <span class="template-name">Minimal Dark</span>
+        <span class="template-check">✓</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeTemplateModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmTemplateAndDownload()">Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARDING MODAL (Company Setup) -->
+<div class="modal-overlay" id="onboarding-modal">
+  <div class="modal">
+    <h2>Welcome to Invoice Maker! 👋</h2>
+    <p>Before you create your first invoice, let's set up your company profile. This will be saved permanently so you never have to enter it again.</p>
+    
+    <form id="onboarding-form" onsubmit="saveOnboardingSettings(event)">
+      <div class="logo-upload-area mb-4">
+        <div class="logo-preview" id="ob-logo-preview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div>
+          <input type="file" id="ob-logo-input" accept="image/*" style="display:none" onchange="handleOnboardingLogoUpload(event)">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('ob-logo-input').click()">Upload Logo</button>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">PNG, JPG up to 500KB</p>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Company Name *</label>
+        <input type="text" class="form-input" id="ob-company-name" required placeholder="e.g. NISSI ENTERPRISES">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Company Address</label>
+        <textarea class="form-textarea" id="ob-address" rows="2" placeholder="e.g. Ramanthapur, Hyderabad, Telangana - 500013"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeOnboardingModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="ob-save-btn">Save & Continue</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+<!-- ============================================
+     LOGIN / REGISTER VIEW
+     ============================================ -->
+<div id="login-view">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="logo-icon">⚡</div>
+      <h1 id="auth-title">Invoice Maker</h1>
+      <p class="login-subtitle" id="auth-subtitle">Sign in to manage your invoices</p>
+
+      <form id="auth-form" onsubmit="handleAuth(event)">
+        <!-- Full Name (Sign Up only) -->
+        <div class="form-group" id="name-field" style="display:none;">
+          <label class="form-label">Full Name *</label>
+          <input type="text" class="form-input" id="auth-name" placeholder="John Doe">
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label class="form-label">Email Address *</label>
+          <input type="email" class="form-input" id="auth-email" placeholder="you@company.com" required autocomplete="email">
+        </div>
+
+        <!-- Password (with Eye Toggle) -->
+        <div class="form-group">
+          <label class="form-label">Password *</label>
+          <div class="password-input-wrapper">
+            <input type="password" class="form-input" id="auth-password" placeholder="••••••••" required oninput="onPasswordInput()" autocomplete="current-password">
+            <button type="button" class="password-toggle-btn" title="Toggle password visibility" onclick="togglePasswordVisibility('auth-password', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <!-- Password Rules (Visible during Sign Up) -->
+          <div class="password-rules" id="password-rules-box" style="display:none;">
+            <div class="password-rules-title">Password must contain:</div>
+            <div class="password-rule-item" id="rule-length"><span class="rule-icon">○</span> At least 8 characters</div>
+            <div class="password-rule-item" id="rule-upper"><span class="rule-icon">○</span> At least 1 uppercase letter (A-Z)</div>
+            <div class="password-rule-item" id="rule-lower"><span class="rule-icon">○</span> At least 1 lowercase letter (a-z)</div>
+            <div class="password-rule-item" id="rule-number"><span class="rule-icon">○</span> At least 1 number (0-9)</div>
+          </div>
+        </div>
+
+        <!-- Confirm Password (with Eye Toggle, Sign Up only) -->
+        <div class="form-group" id="confirm-password-field" style="display:none;">
+          <label class="form-label">Confirm Password *</label>
+          <div class="password-input-wrapper">
+            <input type="password" class="form-input" id="auth-confirm-password" placeholder="••••••••" oninput="onConfirmPasswordInput()" autocomplete="new-password">
+            <button type="button" class="password-toggle-btn" title="Toggle confirm password visibility" onclick="togglePasswordVisibility('auth-confirm-password', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="password-match-status" id="password-match-msg" style="display:none;"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width:100%;justify-content:center;padding:12px;margin-top:8px;">
+          Sign In
+        </button>
+      </form>
+
+      <div class="login-toggle">
+        <span id="auth-toggle-text">Don't have an account? </span>
+        <a id="auth-toggle-link" onclick="toggleAuthMode()">Sign Up</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     APP LAYOUT
+     ============================================ -->
+<div id="app-layout" class="app-layout" style="display:none;">
+
+  <!-- Mobile menu button -->
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-icon">⚡</div>
+        <span class="logo-text">Invoice Maker</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="dashboard" onclick="navigateTo('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-item" data-view="invoice-form" onclick="startNewInvoice()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Invoice
+      </button>
+      <button class="nav-item" data-view="settings" onclick="navigateTo('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info" id="sidebar-user-info"></div>
+      <button class="nav-item logout" onclick="handleSignOut()" style="color:var(--error);margin-top:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ======== DASHBOARD VIEW ======== -->
+    <div class="view active" id="view-dashboard">
+      <div class="page-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="subtitle" id="welcome-text">Welcome back!</p>
+        </div>
+        <button class="btn btn-primary" onclick="startNewInvoice()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Invoice
+        </button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card purple">
+          <div class="stat-label">Total Invoices</div>
+          <div class="stat-value" id="stat-total">0</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-label">Revenue (Paid)</div>
+          <div class="stat-value" id="stat-revenue">₹0</div>
+        </div>
+        <div class="stat-card yellow">
+          <div class="stat-label">Pending</div>
+          <div class="stat-value" id="stat-pending">0</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-label">This Month</div>
+          <div class="stat-value" id="stat-month">0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="search-input" placeholder="Search invoices..." oninput="filterInvoices()">
+          </div>
+          <div class="filter-group">
+            <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+            <button class="filter-btn" data-filter="draft" onclick="setFilter('draft')">Draft</button>
+            <button class="filter-btn" data-filter="sent" onclick="setFilter('sent')">Sent</button>
+            <button class="filter-btn" data-filter="paid" onclick="setFilter('paid')">Paid</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table" id="invoices-table">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Name</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invoices-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="empty-state" id="empty-state" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <h3>No invoices yet</h3>
+          <p>Create your first invoice to get started</p>
+          <button class="btn btn-primary" onclick="startNewInvoice()">Create Invoice</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======== SETTINGS VIEW ======== -->
+    <div class="view" id="view-settings">
+      <div class="page-header">
+        <div>
+          <h1>Company Settings</h1>
+          <p class="subtitle">Configure your company profile — saved automatically for all future invoices</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <form id="settings-form" onsubmit="saveSettings(event)">
+          <div class="form-section">
+            <div class="form-section-title">Company Details</div>
+            <div class="logo-upload-area mb-4">
+              <div class="logo-preview" id="logo-preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </div>
+              <div>
+                <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('logo-input').click()">Upload Logo</button>
+                <p style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">PNG, JPG up to 500KB — saved permanently</p>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Company Name *</label>
+                <input type="text" class="form-input" id="s-company-name" required placeholder="e.g. NISSI ENTERPRISES">
+              </div>
+              <div class="form-group">
+                <label class="form-label">GSTIN</label>
+                <input type="text" class="form-input" id="s-gstin" placeholder="22XXXXX1234X1Z5" maxlength="15">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company Address</label>
+              <textarea class="form-textarea" id="s-address" rows="2" placeholder="e.g. Ramanthapur, Hyderabad, Telangana - 500013"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Company Description / Tagline</label>
+              <input type="text" class="form-input" id="s-tagline" placeholder="e.g. FRP MANUFACTURERS">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-input" id="s-phone" placeholder="+91 98765 43210">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="s-email" placeholder="billing@company.com">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Bank Details (Optional — shown on invoice)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Bank Name</label>
+                <input type="text" class="form-input" id="s-bank-name" placeholder="State Bank of India">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Account Number</label>
+                <input type="text" class="form-input" id="s-account-no" placeholder="1234567890">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">IFSC Code</label>
+                <input type="text" class="form-input" id="s-ifsc" placeholder="SBIN0001234">
+              </div>
+              <div class="form-group">
+                <label class="form-label">UPI ID</label>
+                <input type="text" class="form-input" id="s-upi" placeholder="company@upi">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Invoice Defaults</div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Invoice Prefix</label>
+                <input type="text" class="form-input" id="s-prefix" placeholder="INV" maxlength="10">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default GST Rate (%)</label>
+                <input type="number" class="form-input" id="s-gst-rate" placeholder="18" min="0" max="100" step="0.1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Currency Symbol</label>
+                <input type="text" class="form-input" id="s-currency" placeholder="₹" maxlength="5">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Payment Terms</label>
+              <textarea class="form-textarea" id="s-terms" rows="2" placeholder="e.g. Advance of 50% of order value along with purchase order. Balance at the time of Delivery"></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="save-settings-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Settings
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ======== INVOICE FORM VIEW ======== -->
+    <div class="view" id="view-invoice-form">
+      <div class="page-header">
+        <div>
+          <h1 id="invoice-form-title">New Invoice</h1>
+          <p class="subtitle" id="invoice-form-subtitle">Create a professional invoice</p>
+        </div>
+        <button class="btn btn-secondary" onclick="navigateTo('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Back
+        </button>
+      </div>
+
+      <div class="card">
+        <form id="invoice-form" onsubmit="saveInvoice(event)">
+          <div class="form-section">
+            <div class="form-section-title">Invoice Details</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Invoice Name / Label</label>
+                <input type="text" class="form-input" id="inv-name" placeholder="e.g., FRP Work - Sept 2026">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Invoice Number</label>
+                <input type="text" class="form-input font-mono" id="inv-number" readonly style="opacity:0.7;cursor:not-allowed;">
+              </div>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label">Invoice Date *</label>
+                <input type="date" class="form-input" id="inv-date" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" class="form-input" id="inv-due-date">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="inv-status">
+                  <option value="draft">Draft</option>
+                  <option value="sent">Sent</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Document Type *</label>
+                <select class="form-select" id="inv-doc-type" onchange="onDocTypeChange()">
+                  <option value="QUOTATION">Quotation</option>
+                  <option value="INVOICE">Invoice</option>
+                  <option value="PROFORMA INVOICE">Proforma Invoice</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Subject / Document Title (Optional)</label>
+              <input type="text" class="form-input" id="inv-subject" placeholder="e.g., Subject: Quote for supply of FRP TANK 35KL">
+            </div>
+
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+                <label class="form-label" style="margin-bottom:0;">Opening Message / Letter Greeting (Opener)</label>
+                <select class="form-select" id="preset-opener-select" style="width:auto;padding:4px 30px 4px 10px;font-size:0.82rem;" onchange="applyOpenerPreset(this.value)">
+                  <option value="">-- Choose Opener Preset --</option>
+                  <option value="quote_std">Quotation — Standard Greeting</option>
+                  <option value="quote_formal">Quotation — Formal Business</option>
+                  <option value="inv_std">Invoice — Standard Greeting</option>
+                </select>
+              </div>
+              <textarea class="form-textarea" id="inv-opener" rows="3" placeholder="Dear Sirs, We thank you for your valued enquiry..."></textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Bill To / Ship To</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Client Name *</label>
+                <input type="text" class="form-input" id="inv-client-name" required placeholder="Client or Company Name">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Client GSTIN</label>
+                <input type="text" class="form-input" id="inv-client-gstin" placeholder="22XXXXX1234X1Z5" maxlength="15">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Client Address</label>
+                <textarea class="form-textarea" id="inv-client-address" rows="2" placeholder="Client's full address"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ship To Address</label>
+                <textarea class="form-textarea" id="inv-ship-address" rows="2" placeholder="Shipping address (if different)"></textarea>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Client Phone</label>
+                <input type="tel" class="form-input" id="inv-client-phone" placeholder="+91 98765 43210">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Client Email</label>
+                <input type="email" class="form-input" id="inv-client-email" placeholder="client@example.com">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Tax Configuration</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">GST Type</label>
+                <div class="radio-group">
+                  <label class="radio-label">
+                    <input type="radio" name="gst-type" value="cgst_sgst" checked onchange="recalculateTotals()">
+                    CGST + SGST
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="gst-type" value="igst" onchange="recalculateTotals()">
+                    IGST
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" name="gst-type" value="none" onchange="recalculateTotals()">
+                    No GST
+                  </label>
+                </div>
+              </div>
+              <div class="form-group" id="gst-rate-group">
+                <label class="form-label">GST Rate (%)</label>
+                <select class="form-select" id="inv-gst-rate" onchange="recalculateTotals()">
+                  <option value="0">0%</option>
+                  <option value="5">5%</option>
+                  <option value="12">12%</option>
+                  <option value="18" selected>18%</option>
+                  <option value="28">28%</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Items</div>
+            <div class="table-container">
+              <table class="items-table" id="items-table">
+                <thead>
+                  <tr>
+                    <th class="col-sno">#</th>
+                    <th class="col-desc">Description</th>
+                    <th class="col-hsn">HSN/SAC</th>
+                    <th class="col-qty">Qty</th>
+                    <th class="col-unit">Unit</th>
+                    <th class="col-rate">Rate (₹)</th>
+                    <th class="col-amt">Amount</th>
+                    <th class="col-action"></th>
+                  </tr>
+                </thead>
+                <tbody id="items-tbody"></tbody>
+              </table>
+            </div>
+            <button type="button" class="btn btn-secondary mt-4" onclick="addItemRow()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Item
+            </button>
+          </div>
+
+          <!-- Discount -->
+          <div class="form-section">
+            <div class="form-section-title">Discount</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Discount Amount (₹)</label>
+                <input type="number" class="form-input" id="inv-discount" value="0" min="0" step="any" oninput="recalculateTotals()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Totals -->
+          <div class="invoice-totals">
+            <div class="totals-box">
+              <div class="total-row">
+                <span class="label">Subtotal</span>
+                <span class="value" id="disp-subtotal">₹0.00</span>
+              </div>
+              <div class="total-row" id="row-discount" style="display:none;">
+                <span class="label">Discount</span>
+                <span class="value" id="disp-discount" style="color:var(--error);">-₹0.00</span>
+              </div>
+              <div class="total-row" id="row-cgst">
+                <span class="label" id="label-cgst">CGST (9%)</span>
+                <span class="value" id="disp-cgst">₹0.00</span>
+              </div>
+              <div class="total-row" id="row-sgst">
+                <span class="label" id="label-sgst">SGST (9%)</span>
+                <span class="value" id="disp-sgst">₹0.00</span>
+              </div>
+              <div class="total-row" id="row-igst" style="display:none;">
+                <span class="label" id="label-igst">IGST (18%)</span>
+                <span class="value" id="disp-igst">₹0.00</span>
+              </div>
+              <div class="total-row grand">
+                <span class="label">Grand Total</span>
+                <span class="value" id="disp-total">₹0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes, Terms & Specs -->
+          <div class="form-section mt-4">
+            <div class="form-section-title">Specifications, Notes & Terms</div>
+            <div class="form-group">
+              <label class="form-label">Specifications (Optional)</label>
+              <textarea class="form-textarea" id="inv-specs" rows="3" placeholder="Technical specifications, scope of work, material details, etc."></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" id="inv-notes" rows="2" placeholder="Additional notes for client"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Terms & Conditions</label>
+                <textarea class="form-textarea" id="inv-terms" rows="2" placeholder="Payment terms, conditions, etc."></textarea>
+              </div>
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+                <label class="form-label" style="margin-bottom:0;">Closing Message & Sign-off (Closer)</label>
+                <select class="form-select" id="preset-closer-select" style="width:auto;padding:4px 30px 4px 10px;font-size:0.82rem;" onchange="applyCloserPreset(this.value)">
+                  <option value="">-- Choose Closer Preset --</option>
+                  <option value="quote_std">Quotation — Standard Closing</option>
+                  <option value="quote_formal">Quotation — Formal Closing</option>
+                  <option value="inv_std">Invoice — Standard Closing</option>
+                </select>
+              </div>
+              <textarea class="form-textarea" id="inv-closer" rows="3" placeholder="We hope you find our Quote to be in order... Yours faithfully,"></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="navigateTo('dashboard')">Cancel</button>
+            <button type="submit" class="btn btn-success" id="save-invoice-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Invoice
+            </button>
+            <button type="button" class="btn btn-primary" onclick="saveAndPreview()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Save & Preview
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ======== INVOICE PREVIEW VIEW ======== -->
+    <div class="view" id="view-invoice-preview">
+      <div class="preview-actions-bar">
+        <button class="btn btn-secondary" onclick="navigateTo('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Back to Dashboard
+        </button>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-secondary" onclick="editCurrentInvoice()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit
+          </button>
+          <button class="btn btn-secondary" onclick="duplicateInvoice(state.currentInvoiceId)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Clone to New
+          </button>
+          <button class="btn btn-primary" onclick="openTemplateModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download PDF
+          </button>
+        </div>
+      </div>
+      <div class="invoice-preview-container" id="invoice-preview-content"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- EXTERNAL SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<!-- APP SCRIPTS (separate files) -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/invoices.js"></script>
+<script src="js/items.js"></script>
+<script src="js/preview.js"></script>
+<script src="js/pdf-templates.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

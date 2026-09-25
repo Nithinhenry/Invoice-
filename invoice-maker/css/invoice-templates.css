@@ -1,0 +1,82 @@
+/* ============================================
+   INVOICE PREVIEW TEMPLATE STYLES
+   Minimal, Professional, Pure White Design
+   ============================================ */
+
+/* ---- CONTAINER ---- */
+.invoice-preview-container {
+  background: #ffffff !important;
+  color: #000000 !important;
+  padding: 40px;
+  border-radius: 4px;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Ensure all text inside is strictly black or dark gray */
+.invoice-preview-container * {
+  color: #000000;
+  letter-spacing: normal !important;
+}
+
+/* ---- SHARED PREVIEW STYLES ---- */
+.invoice-preview-container .preview-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 32px; padding-bottom: 24px;
+  border-bottom: 2px solid #000000;
+}
+.invoice-preview-container .company-info h2 { font-size: 1.6rem; margin-bottom: 4px; font-weight: bold; }
+.invoice-preview-container .company-info p { color: #333333; font-size: 0.9rem; margin: 2px 0; }
+.invoice-preview-container .company-info .tagline { font-weight: bold; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 6px; }
+.invoice-preview-container .company-logo-preview img { max-height: 80px; max-width: 200px; margin-bottom: 10px; }
+.invoice-preview-container .invoice-meta { text-align: right; }
+.invoice-preview-container .invoice-meta h1 { font-size: 2.2rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px !important; font-weight: bold; }
+.invoice-preview-container .invoice-meta p { font-size: 0.9rem; color: #333333; margin: 2px 0; }
+
+.invoice-preview-container .addresses-row { display: flex; gap: 40px; margin-bottom: 32px; }
+.invoice-preview-container .address-block { flex: 1; }
+.invoice-preview-container .address-block h3 {
+  font-size: 0.85rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #cccccc; padding-bottom: 4px;
+}
+.invoice-preview-container .address-block p { margin: 4px 0; font-size: 0.95rem; line-height: 1.4; }
+
+.invoice-preview-container table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+.invoice-preview-container table th {
+  padding: 12px; text-align: left; font-size: 0.85rem;
+  font-weight: bold; text-transform: uppercase; 
+  background: #f8f8f8 !important; border-bottom: 2px solid #000000;
+  border-top: 2px solid #000000;
+}
+.invoice-preview-container table th:last-child,
+.invoice-preview-container table td:last-child { text-align: right; }
+.invoice-preview-container table td { padding: 12px; font-size: 0.95rem; border-bottom: 1px solid #dddddd; }
+
+.invoice-preview-container .totals-section { display: flex; justify-content: flex-end; margin-bottom: 32px; }
+.invoice-preview-container .totals-inner { min-width: 300px; }
+.invoice-preview-container .total-line { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.95rem; }
+.invoice-preview-container .total-line.grand { border-top: 2px solid #000000; margin-top: 8px; padding-top: 12px; font-weight: bold; font-size: 1.2rem; }
+
+.invoice-preview-container .amount-words { padding: 16px; border: 1px solid #cccccc; border-radius: 4px; font-size: 0.9rem; margin-bottom: 32px; background: #fafafa !important; }
+.invoice-preview-container .amount-words strong { font-weight: bold; }
+
+.invoice-preview-container .bank-details { border: 1px solid #cccccc; border-radius: 4px; padding: 16px; margin-bottom: 24px; background: #fafafa !important; }
+.invoice-preview-container .bank-details h4 { font-size: 0.85rem; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #cccccc; padding-bottom: 4px; }
+.invoice-preview-container .bank-details p { font-size: 0.95rem; margin: 4px 0; }
+
+.invoice-preview-container .notes-section { font-size: 0.9rem; margin-top: 16px; }
+.invoice-preview-container .notes-section strong { font-weight: bold; }
+.invoice-preview-container .terms-section { font-size: 0.85rem; margin-top: 16px; border-top: 1px solid #cccccc; padding-top: 16px; }
+.invoice-preview-container .terms-section strong { font-weight: bold; }
+
+.invoice-preview-container .signature-line {
+  margin-top: 60px; padding-top: 16px; border-top: 1px solid #000000;
+  text-align: right; font-size: 0.9rem; font-weight: bold; width: 250px; float: right;
+}
+.invoice-preview-container::after { content: ""; display: table; clear: both; }
+
+/* Force all templates to be standard white */
+.template-classic, .template-blue-modern, .template-minimal-dark {
+  /* They all use the same clean white styles above */
+}
