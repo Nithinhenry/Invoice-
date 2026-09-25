@@ -141,11 +141,12 @@ async function handleAuth(e) {
   const passwordInput = document.getElementById('auth-password');
   const submitBtn = document.getElementById('auth-submit-btn');
 
-  const email = (emailInput.value || '').trim().toLowerCase();
+  const rawInput = (emailInput.value || '').trim();
+  const identifier = rawInput.toLowerCase();
   const password = passwordInput.value;
 
-  if (!email || !password) {
-    showToast('Please enter both email and password', 'error');
+  if (!identifier || !password) {
+    showToast('Please enter both username/email and password', 'error');
     return;
   }
 
@@ -157,57 +158,57 @@ async function handleAuth(e) {
       const confirmPassword = document.getElementById('auth-confirm-password').value;
       const name = (document.getElementById('auth-name').value || '').trim();
 
-      // 1. Check double password confirmation
       if (password !== confirmPassword) {
         throw new Error('Passwords do not match. Please enter the password twice correctly.');
       }
 
-      // 2. Check password rules configuration
       if (!isPasswordValid(password)) {
         throw new Error('Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.');
       }
 
-      // Supabase or Local Account signup
       if (supabaseClient) {
+        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
         const result = await supabaseClient.auth.signUp({
           email,
           password,
-          options: { data: { full_name: name } }
+          options: { data: { full_name: name || rawInput } }
         });
         if (result.error) throw result.error;
-
         if (result.data.user) {
           state.user = {
             id: result.data.user.id,
             email: result.data.user.email,
-            name: name || result.data.user.email.split('@')[0]
+            name: name || rawInput
           };
         }
       } else {
-        // Local Accounts Storage
         const usersJSON = localStorage.getItem('registered_users');
         const users = usersJSON ? JSON.parse(usersJSON) : [];
 
-        const existing = users.find(u => u.email.toLowerCase() === email);
+        const existing = users.find(u =>
+          (u.email && u.email.toLowerCase() === identifier) ||
+          (u.username && u.username.toLowerCase() === identifier) ||
+          (u.name && u.name.toLowerCase() === identifier)
+        );
         if (existing) {
-          throw new Error('An account with this email already exists. Please sign in instead.');
+          throw new Error('An account with this username/email already exists. Please sign in instead.');
         }
 
+        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
         const newUser = {
-          id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-          email,
-          name: name || email.split('@')[0],
+          id: userId,
+          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+          username: identifier,
+          name: name || rawInput,
           passwordHash: hashPassword(password),
           createdAt: new Date().toISOString()
         };
 
         users.push(newUser);
         localStorage.setItem('registered_users', JSON.stringify(users));
-
         state.user = { id: newUser.id, email: newUser.email, name: newUser.name };
       }
 
-      // Store active session immediately (no email confirmation needed)
       localStorage.setItem('current_user_session', JSON.stringify(state.user));
       showToast('Account created successfully! Welcome!', 'success');
       await initApp();
@@ -215,24 +216,46 @@ async function handleAuth(e) {
     } else {
       // SIGN IN MODE
       if (supabaseClient) {
+        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
         const result = await supabaseClient.auth.signInWithPassword({ email, password });
         if (result.error) throw result.error;
-
         state.user = {
           id: result.data.user.id,
           email: result.data.user.email,
-          name: result.data.user.user_metadata?.full_name || result.data.user.email.split('@')[0]
+          name: result.data.user.user_metadata?.full_name || rawInput
         };
       } else {
         const usersJSON = localStorage.getItem('registered_users');
         const users = usersJSON ? JSON.parse(usersJSON) : [];
 
-        const user = users.find(u => u.email.toLowerCase() === email);
-        if (!user || user.passwordHash !== hashPassword(password)) {
-          throw new Error('Invalid email or password. Please check your credentials.');
+        let user = users.find(u =>
+          (u.email && u.email.toLowerCase() === identifier) ||
+          (u.username && u.username.toLowerCase() === identifier) ||
+          (u.name && u.name.toLowerCase() === identifier)
+        );
+
+        if (!user) {
+          // Auto-create local user account if password rules pass
+          if (isPasswordValid(password)) {
+            const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
+            user = {
+              id: userId,
+              email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+              username: identifier,
+              name: rawInput,
+              passwordHash: hashPassword(password),
+              createdAt: new Date().toISOString()
+            };
+            users.push(user);
+            localStorage.setItem('registered_users', JSON.stringify(users));
+          } else {
+            throw new Error('Account not found for this username/email. If you are new, click "Sign Up" below to create an account.');
+          }
+        } else if (user.passwordHash !== hashPassword(password)) {
+          throw new Error('Incorrect password. Please check your credentials.');
         }
 
-        state.user = { id: user.id, email: user.email, name: user.name };
+        state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
       }
 
       localStorage.setItem('current_user_session', JSON.stringify(state.user));
