@@ -1494,20 +1494,20 @@
         <!-- Full Name (Sign Up only) -->
         <div class="form-group" id="name-field" style="display:none;">
           <label class="form-label">Full Name *</label>
-          <input type="text" class="form-input" id="auth-name" placeholder="John Doe">
+          <input type="text" class="form-input" id="auth-name" name="name" placeholder="John Doe" autocomplete="name">
         </div>
 
         <!-- Username or Email -->
         <div class="form-group">
           <label class="form-label" id="auth-email-label">Username or Email *</label>
-          <input type="text" class="form-input" id="auth-email" placeholder="e.g. username or billing@company.com" required autocomplete="username">
+          <input type="text" class="form-input" id="auth-email" name="username" placeholder="e.g. username or billing@company.com" required autocomplete="username">
         </div>
 
         <!-- Password (with Eye Toggle) -->
         <div class="form-group">
           <label class="form-label">Password *</label>
           <div class="password-input-wrapper">
-            <input type="password" class="form-input" id="auth-password" placeholder="••••••••" required oninput="onPasswordInput()" autocomplete="current-password">
+            <input type="password" class="form-input" id="auth-password" name="password" placeholder="••••••••" required oninput="onPasswordInput()" autocomplete="current-password">
             <button type="button" class="password-toggle-btn" title="Toggle password visibility" onclick="togglePasswordVisibility('auth-password', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -1526,7 +1526,7 @@
         <div class="form-group" id="confirm-password-field" style="display:none;">
           <label class="form-label">Confirm Password *</label>
           <div class="password-input-wrapper">
-            <input type="password" class="form-input" id="auth-confirm-password" placeholder="••••••••" oninput="onConfirmPasswordInput()" autocomplete="new-password">
+            <input type="password" class="form-input" id="auth-confirm-password" name="confirm-password" placeholder="••••••••" oninput="onConfirmPasswordInput()" autocomplete="new-password">
             <button type="button" class="password-toggle-btn" title="Toggle confirm password visibility" onclick="togglePasswordVisibility('auth-confirm-password', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -2406,6 +2406,22 @@ async function checkSession() {
 }
 
 checkSession();
+
+// Sync auth state across open tabs automatically
+window.addEventListener('storage', (e) => {
+  if (e.key === 'current_user_session') {
+    if (e.newValue) {
+      try {
+        state.user = JSON.parse(e.newValue);
+        initApp();
+      } catch (err) {}
+    } else {
+      state.user = null;
+      document.getElementById('login-view').style.display = 'flex';
+      document.getElementById('app-layout').style.display = 'none';
+    }
+  }
+});
 
 function getSettingsKey() {
   const userId = state.user?.id || 'guest';
