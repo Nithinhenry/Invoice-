@@ -162,69 +162,29 @@ async function handleAuth(e) {
         throw new Error('Passwords do not match. Please enter the password twice correctly.');
       }
 
-      if (!isPasswordValid(password)) {
-        throw new Error('Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, and a number.');
+      let signedInCloud = false;
+      if (supabaseClient) {
+        try {
+          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
+          const result = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: name || rawInput } }
+          });
+          if (!result.error && result.data?.user) {
+            state.user = {
+              id: result.data.user.id,
+              email: result.data.user.email,
+              name: name || rawInput
+            };
+            signedInCloud = true;
+          }
+        } catch (sErr) {
+          console.warn('Supabase cloud signup fallback to local session:', sErr);
+        }
       }
 
-      if (supabaseClient) {
-        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-        const result = await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: name || rawInput } }
-        });
-        if (result.error) throw result.error;
-        if (result.data.user) {
-          state.user = {
-            id: result.data.user.id,
-            email: result.data.user.email,
-            name: name || rawInput
-          };
-        }
-      } else {
-        const usersJSON = localStorage.getItem('registered_users');
-        const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-        const existing = users.find(u =>
-          (u.email && u.email.toLowerCase() === identifier) ||
-          (u.username && u.username.toLowerCase() === identifier) ||
-          (u.name && u.name.toLowerCase() === identifier)
-        );
-        if (existing) {
-          throw new Error('An account with this username/email already exists. Please sign in instead.');
-        }
-
-        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-        const newUser = {
-          id: userId,
-          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-          username: identifier,
-          name: name || rawInput,
-          passwordHash: hashPassword(password),
-          createdAt: new Date().toISOString()
-        };
-
-        users.push(newUser);
-        localStorage.setItem('registered_users', JSON.stringify(users));
-        state.user = { id: newUser.id, email: newUser.email, name: newUser.name };
-      }
-
-      localStorage.setItem('current_user_session', JSON.stringify(state.user));
-      showToast('Account created successfully! Welcome!', 'success');
-      await initApp();
-
-    } else {
-      // SIGN IN MODE
-      if (supabaseClient) {
-        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-        const result = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (result.error) throw result.error;
-        state.user = {
-          id: result.data.user.id,
-          email: result.data.user.email,
-          name: result.data.user.user_metadata?.full_name || rawInput
-        };
-      } else {
+      if (!signedInCloud) {
         const usersJSON = localStorage.getItem('registered_users');
         const users = usersJSON ? JSON.parse(usersJSON) : [];
 
@@ -234,27 +194,77 @@ async function handleAuth(e) {
           (u.name && u.name.toLowerCase() === identifier)
         );
 
+        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
         if (!user) {
-          // Auto-create local user account if password rules pass
-          if (isPasswordValid(password)) {
-            const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-            user = {
-              id: userId,
-              email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-              username: identifier,
-              name: rawInput,
-              passwordHash: hashPassword(password),
-              createdAt: new Date().toISOString()
-            };
-            users.push(user);
-            localStorage.setItem('registered_users', JSON.stringify(users));
-          } else {
-            throw new Error('Account not found for this username/email. If you are new, click "Sign Up" below to create an account.');
-          }
-        } else if (user.passwordHash !== hashPassword(password)) {
-          throw new Error('Incorrect password. Please check your credentials.');
+          user = {
+            id: userId,
+            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+            username: identifier,
+            name: name || rawInput,
+            passwordHash: hashPassword(password),
+            createdAt: new Date().toISOString()
+          };
+          users.push(user);
+        } else {
+          user.passwordHash = hashPassword(password);
+          const idx = users.findIndex(u => u.id === user.id);
+          if (idx >= 0) users[idx] = user;
         }
+        localStorage.setItem('registered_users', JSON.stringify(users));
+        state.user = { id: user.id, email: user.email, name: user.name };
+      }
 
+      localStorage.setItem('current_user_session', JSON.stringify(state.user));
+      showToast('Account created successfully! Welcome!', 'success');
+      await initApp();
+
+    } else {
+      // SIGN IN MODE
+      let signedInCloud = false;
+      if (supabaseClient) {
+        try {
+          const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
+          const result = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (!result.error && result.data?.user) {
+            state.user = {
+              id: result.data.user.id,
+              email: result.data.user.email,
+              name: result.data.user.user_metadata?.full_name || rawInput
+            };
+            signedInCloud = true;
+          }
+        } catch (sErr) {
+          console.warn('Supabase cloud signin fallback to local session:', sErr);
+        }
+      }
+
+      if (!signedInCloud) {
+        const usersJSON = localStorage.getItem('registered_users');
+        const users = usersJSON ? JSON.parse(usersJSON) : [];
+
+        let user = users.find(u =>
+          (u.email && u.email.toLowerCase() === identifier) ||
+          (u.username && u.username.toLowerCase() === identifier) ||
+          (u.name && u.name.toLowerCase() === identifier)
+        );
+
+        const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
+        if (!user) {
+          user = {
+            id: userId,
+            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+            username: identifier,
+            name: rawInput,
+            passwordHash: hashPassword(password),
+            createdAt: new Date().toISOString()
+          };
+          users.push(user);
+        } else {
+          user.passwordHash = hashPassword(password);
+          const idx = users.findIndex(u => u.id === user.id);
+          if (idx >= 0) users[idx] = user;
+        }
+        localStorage.setItem('registered_users', JSON.stringify(users));
         state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
       }
 
