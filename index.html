@@ -2201,75 +2201,80 @@ function toggleAuthMode() {
   }
 }
 
-async function callSyncAPI(payload) {
+const REGISTRY_ID = 'ff808181a09d98f701a0d634e1f80be7';
+
+async function fetchRegistry() {
   try {
-    let res = await fetch('/api/sync', {
-      method: 'POST',
+    const res = await fetch(`https://api.restful-api.dev/objects/${REGISTRY_ID}`);
+    if (res.ok) {
+      const item = await res.json();
+      return item.data?.users || {};
+    }
+  } catch (e) {
+    console.warn('Fetch registry error:', e);
+  }
+  return null;
+}
+
+async function saveRegistry(usersMap) {
+  try {
+    await fetch(`https://api.restful-api.dev/objects/${REGISTRY_ID}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        name: 'inv_global_user_registry',
+        data: { users: usersMap }
+      })
     });
-    if (!res || res.status === 404) {
-      res = await fetch('/api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    }
-    return res;
-  } catch (err) {
-    try {
-      return await fetch('/api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    } catch (e) {
-      return null;
-    }
+  } catch (e) {
+    console.warn('Save registry error:', e);
   }
 }
 
 async function signInCloudUser(identifier, password) {
   const cleanUsername = identifier.trim().toLowerCase();
   const userId = 'usr_' + cleanUsername.replace(/[^a-z0-9]/g, '_');
+  const inputHash = hashPassword(password);
 
-  try {
-    const res = await callSyncAPI({
-      action: 'signin',
-      username: cleanUsername,
-      password: password
-    });
+  const registry = await fetchRegistry();
+  if (registry) {
+    const userEntry = registry[cleanUsername];
+    if (!userEntry) {
+      throw new Error('Account not found. Please click Sign Up to create an account.');
+    }
 
-    if (res && res.ok) {
-      const data = await res.json();
-      if (data.success && data.found) {
-        if (data.settings && Object.keys(data.settings).length > 0) {
-          state.settings = data.settings;
-          localStorage.setItem(`invoice_settings_${userId}`, JSON.stringify(data.settings));
+    if (userEntry.passwordHash && userEntry.passwordHash !== inputHash) {
+      throw new Error('Invalid credentials. Incorrect password.');
+    }
+
+    if (userEntry.objectId) {
+      try {
+        const userObjRes = await fetch(`https://api.restful-api.dev/objects/${userEntry.objectId}`);
+        if (userObjRes.ok) {
+          const userObj = await userObjRes.json();
+          const cloudData = userObj.data || {};
+
+          if (cloudData.settings && Object.keys(cloudData.settings).length > 0) {
+            state.settings = cloudData.settings;
+            localStorage.setItem(`invoice_settings_${userId}`, JSON.stringify(cloudData.settings));
+          }
+          if (Array.isArray(cloudData.invoices)) {
+            state.invoices = cloudData.invoices;
+            localStorage.setItem(`invoice_data_${userId}`, JSON.stringify(cloudData.invoices));
+          }
+
+          return {
+            id: userId,
+            email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+            username: cleanUsername,
+            name: userEntry.name || cloudData.user?.name || cleanUsername,
+            objectId: userEntry.objectId
+          };
         }
-        if (Array.isArray(data.invoices)) {
-          state.invoices = data.invoices;
-          localStorage.setItem(`invoice_data_${userId}`, JSON.stringify(data.invoices));
-        }
-
-        return {
-          id: userId,
-          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-          username: cleanUsername,
-          name: data.user?.name || cleanUsername
-        };
-      }
-    } else if (res) {
-      const errData = await res.json().catch(() => ({}));
-      if (errData.error) {
-        throw new Error(errData.error);
+      } catch (e) {
+        console.warn('Fetch user object error:', e);
       }
     }
-  } catch (err) {
-    if (err.message && (err.message.includes('Invalid credentials') || err.message.includes('Account not found') || err.message.includes('Password'))) {
-      throw err;
-    }
-    console.warn('Sync API offline fallback during signin:', err);
   }
 
   // Fallback to local storage if API is offline
@@ -2294,52 +2299,56 @@ async function signInCloudUser(identifier, password) {
 async function signUpCloudUser(identifier, password, nameInput = '') {
   const cleanUsername = identifier.trim().toLowerCase();
   const userId = 'usr_' + cleanUsername.replace(/[^a-z0-9]/g, '_');
+  const inputHash = hashPassword(password);
   const name = nameInput || cleanUsername;
 
-  try {
-    const res = await callSyncAPI({
-      action: 'signup',
-      username: cleanUsername,
-      password: password,
-      name: name,
-      settings: state.settings || {},
-      invoices: state.invoices || []
-    });
-
-    if (res && res.ok) {
-      const data = await res.json();
-      if (data.settings) {
-        state.settings = data.settings;
-        localStorage.setItem(`invoice_settings_${userId}`, JSON.stringify(data.settings));
-      }
-      if (Array.isArray(data.invoices)) {
-        state.invoices = data.invoices;
-        localStorage.setItem(`invoice_data_${userId}`, JSON.stringify(data.invoices));
-      }
-      return {
-        id: userId,
-        email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-        username: cleanUsername,
-        name: data.user?.name || name
-      };
-    } else if (res) {
-      const errData = await res.json().catch(() => ({}));
-      if (errData.error) {
-        throw new Error(errData.error);
-      }
+  const registry = (await fetchRegistry()) || {};
+  if (registry[cleanUsername] && registry[cleanUsername].passwordHash) {
+    if (registry[cleanUsername].passwordHash !== inputHash) {
+      throw new Error('Username is already taken. Please sign in or choose another username.');
     }
-  } catch (err) {
-    if (err.message && (err.message.includes('already taken') || err.message.includes('Password'))) {
-      throw err;
-    }
-    console.warn('Sync API offline fallback during signup:', err);
   }
+
+  let objectId = registry[cleanUsername]?.objectId;
+
+  if (!objectId) {
+    try {
+      const createRes = await fetch('https://api.restful-api.dev/objects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `inv_usr_${cleanUsername}`,
+          data: {
+            user: { id: userId, username: cleanUsername, name: name },
+            settings: state.settings || {},
+            invoices: state.invoices || []
+          }
+        })
+      });
+
+      if (createRes.ok) {
+        const createdObj = await createRes.json();
+        objectId = createdObj.id;
+      }
+    } catch (e) {
+      console.warn('Create user object error:', e);
+    }
+  }
+
+  registry[cleanUsername] = {
+    objectId: objectId || '',
+    passwordHash: inputHash,
+    name: name
+  };
+
+  await saveRegistry(registry);
 
   return {
     id: userId,
     email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
     username: cleanUsername,
-    name: name
+    name: name,
+    objectId: objectId
   };
 }
 
@@ -2349,16 +2358,35 @@ async function pushCloudUserData() {
   if (!username) return;
   const cleanUsername = username.trim().toLowerCase();
 
-  try {
-    await callSyncAPI({
-      action: 'push',
-      username: cleanUsername,
-      name: state.user.name || cleanUsername,
-      settings: state.settings || {},
-      invoices: state.invoices || []
-    });
-  } catch (err) {
-    console.warn('Cloud push notice:', err);
+  let objectId = state.user.objectId;
+
+  if (!objectId) {
+    const registry = await fetchRegistry();
+    if (registry && registry[cleanUsername]) {
+      objectId = registry[cleanUsername].objectId;
+      state.user.objectId = objectId;
+      localStorage.setItem('current_user_session', JSON.stringify(state.user));
+    }
+  }
+
+  if (objectId) {
+    try {
+      await fetch(`https://api.restful-api.dev/objects/${objectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `inv_usr_${cleanUsername}`,
+          data: {
+            user: { id: state.user.id, username: cleanUsername, name: state.user.name },
+            settings: state.settings || {},
+            invoices: state.invoices || [],
+            updatedAt: new Date().toISOString()
+          }
+        })
+      });
+    } catch (e) {
+      console.warn('Push cloud data error:', e);
+    }
   }
 }
 
