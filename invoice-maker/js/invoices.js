@@ -346,9 +346,31 @@ async function saveInvoice(e) {
     if (typeof pushCloudUserData === 'function') pushCloudUserData();
 
     if (supabaseClient && state.user?.id) {
-      await supabaseClient
-        .from('invoices')
-        .upsert(invoiceData);
+      try {
+        const { items: invoiceItemsList, ...invRecord } = invoiceData;
+        await supabaseClient
+          .from('invoices')
+          .upsert({
+            ...invRecord,
+            user_id: state.user.id
+          });
+        await supabaseClient.from('invoice_items').delete().eq('invoice_id', invoiceId);
+        if (Array.isArray(invoiceItemsList) && invoiceItemsList.length > 0) {
+          const itemsData = invoiceItemsList.map((item, idx) => ({
+            invoice_id: invoiceId,
+            item_order: idx,
+            description: item.description || '',
+            hsn_code: item.hsn_code || '',
+            quantity: parseFloat(item.quantity) || 1,
+            unit: item.unit || 'pcs',
+            unit_price: parseFloat(item.unit_price) || 0,
+            amount: parseFloat(item.amount) || 0
+          }));
+          await supabaseClient.from('invoice_items').insert(itemsData);
+        }
+      } catch (sbErr) {
+        console.warn('Supabase invoice sync notice:', sbErr.message);
+      }
     }
 
     showToast('Invoice saved successfully & synced to cloud!', 'success');

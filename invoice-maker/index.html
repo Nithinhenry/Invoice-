@@ -396,6 +396,69 @@
             </div>
           </div>
 
+          <!-- Data Backup & Transfer -->
+          <div class="form-section">
+            <div class="form-section-title">Data Backup & Cross-Device Sync</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
+              Export your invoices and company profile to transfer them to another browser, device, or phone easily.
+            </p>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary" onclick="exportDataBackup()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Export Backup (.json)
+              </button>
+              <input type="file" id="import-backup-file" accept=".json" style="display:none;" onchange="importDataBackup(event)">
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('import-backup-file').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Import Backup (.json)
+              </button>
+            </div>
+          </div>
+
+          <!-- Supabase Cloud Database Section -->
+          <div class="form-section" style="border: 1px solid rgba(16, 185, 129, 0.28); background: rgba(16, 185, 129, 0.04); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+              <div class="form-section-title" style="margin-bottom:0; display:flex; align-items:center; gap:8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                Supabase Cloud Database Sync
+              </div>
+              <div id="supabase-status-badge" style="display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; font-weight:600; padding:4px 10px; border-radius:20px; background:rgba(100,116,139,0.2); color:#94a3b8;">
+                <span style="width:8px; height:8px; border-radius:50%; background:#94a3b8;"></span>
+                Not Connected (Local Mode)
+              </div>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px; line-height:1.5;">
+              Connect your free <strong>Supabase</strong> project to automatically sync your invoices, logo, and profile in real-time across phone, tablet, and laptop. Supabase works smoothly on <strong>all mobile data carriers (Jio, Airtel, Vi)</strong>.
+            </p>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">Supabase Project URL</label>
+                <input type="url" class="form-input" id="s-supabase-url" placeholder="https://your-project.supabase.co" autocomplete="off" autocapitalize="none">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Supabase Anon Public Key</label>
+                <input type="password" class="form-input" id="s-supabase-key" placeholder="eyJhbGciOi..." autocomplete="off">
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+              <button type="button" class="btn btn-primary" id="btn-save-supabase" onclick="saveAndConnectSupabase()" style="background:#10b981; border-color:#10b981;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Connect & Sync Database
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="testSupabaseConnection()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Test Connection
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="copySupabaseSetupSQL()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy SQL Setup Script
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-disconnect-supabase" onclick="disconnectSupabase()" style="display:none; color:#ef4444; border-color:rgba(239,68,68,0.3);">
+                Disconnect
+              </button>
+            </div>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="save-settings-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>

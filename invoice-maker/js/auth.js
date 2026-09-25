@@ -628,16 +628,77 @@ async function handleAuth(e) {
 
   try {
     let syncedUser;
-    if (isAuthMode === 'signup') {
-      const confirmPasswordInput = document.getElementById('auth-confirm-password');
-      const confirmPassword = (confirmPasswordInput ? confirmPasswordInput.value : '').trim();
-      if (confirmPassword && password !== confirmPassword) {
-        throw new Error('Passwords do not match. Please enter the password twice correctly.');
-      }
+
+    // 1. Supabase Auth if connected
+    if (supabaseClient) {
+      const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
       const nameInput = (document.getElementById('auth-name')?.value || '').trim();
-      syncedUser = await signUpCloudUser(identifier, password, nameInput);
-    } else {
-      syncedUser = await signInCloudUser(identifier, password);
+      try {
+        if (isAuthMode === 'signup') {
+          const confirmPasswordInput = document.getElementById('auth-confirm-password');
+          const confirmPassword = (confirmPasswordInput ? confirmPasswordInput.value : '').trim();
+          if (confirmPassword && password !== confirmPassword) {
+            throw new Error('Passwords do not match. Please enter the password twice correctly.');
+          }
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: nameInput || identifier, name: nameInput || identifier } }
+          });
+          if (error) {
+            if (error.message.includes('already registered') || error.message.includes('already exists')) {
+              const res = await supabaseClient.auth.signInWithPassword({ email, password });
+              if (res.error) throw res.error;
+              syncedUser = {
+                id: res.data.user.id,
+                email: res.data.user.email,
+                name: res.data.user.user_metadata?.full_name || nameInput || identifier,
+                username: identifier
+              };
+            } else {
+              throw error;
+            }
+          } else if (data?.user) {
+            syncedUser = {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.user_metadata?.full_name || nameInput || identifier,
+              username: identifier
+            };
+          }
+        } else {
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          if (data?.user) {
+            syncedUser = {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.user_metadata?.full_name || identifier,
+              username: identifier
+            };
+          }
+        }
+      } catch (sbErr) {
+        console.warn('Supabase auth notice:', sbErr.message);
+        if (sbErr.message.includes('Invalid login') || sbErr.message.includes('invalid credentials') || sbErr.message.includes('Invalid credentials')) {
+          throw new Error('Invalid credentials: ' + sbErr.message);
+        }
+      }
+    }
+
+    // 2. Seamless local-first registry fallback if Supabase not used
+    if (!syncedUser) {
+      if (isAuthMode === 'signup') {
+        const confirmPasswordInput = document.getElementById('auth-confirm-password');
+        const confirmPassword = (confirmPasswordInput ? confirmPasswordInput.value : '').trim();
+        if (confirmPassword && password !== confirmPassword) {
+          throw new Error('Passwords do not match. Please enter the password twice correctly.');
+        }
+        const nameInput = (document.getElementById('auth-name')?.value || '').trim();
+        syncedUser = await signUpCloudUser(identifier, password, nameInput);
+      } else {
+        syncedUser = await signInCloudUser(identifier, password);
+      }
     }
 
     state.user = syncedUser;
