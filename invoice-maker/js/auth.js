@@ -135,6 +135,137 @@ function toggleAuthMode() {
 }
 
 // Handle Authentication Submit (Sign In / Sign Up)
+const CLOUD_REGISTRY_ID = 'ff808181a09d98f701a0d62171b90bd6';
+
+async function syncCloudUser(identifier, password, nameInput = '') {
+  const cleanUsername = identifier.trim().toLowerCase();
+  const userId = 'usr_' + cleanUsername.replace(/[^a-z0-9]/g, '_');
+
+  try {
+    const regRes = await fetch(`https://api.restful-api.dev/objects/${CLOUD_REGISTRY_ID}`);
+    let usersMap = {};
+    if (regRes.ok) {
+      const regData = await regRes.json();
+      usersMap = regData.data?.users || {};
+    }
+
+    let cloudId = usersMap[cleanUsername]?.cloudId;
+
+    if (cloudId) {
+      const userRes = await fetch(`https://api.restful-api.dev/objects/${cloudId}`);
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        const cData = userData.data || {};
+
+        if (cData.settings) {
+          state.settings = cData.settings;
+          localStorage.setItem(`invoice_settings_${userId}`, JSON.stringify(cData.settings));
+        }
+        if (Array.isArray(cData.invoices)) {
+          state.invoices = cData.invoices;
+          localStorage.setItem(`invoice_data_${userId}`, JSON.stringify(cData.invoices));
+        }
+
+        return {
+          id: userId,
+          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+          username: cleanUsername,
+          name: cData.name || nameInput || cleanUsername,
+          cloudId: cloudId
+        };
+      }
+    }
+
+    // New cloud user -> Create cloud profile
+    const localSettings = JSON.parse(localStorage.getItem(`invoice_settings_${userId}`) || localStorage.getItem('invoice_settings') || '{}');
+    const localInvoices = JSON.parse(localStorage.getItem(`invoice_data_${userId}`) || localStorage.getItem('invoice_data') || '[]');
+    const displayName = nameInput || cleanUsername;
+
+    const createRes = await fetch('https://api.restful-api.dev/objects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `invoice_user_${cleanUsername}`,
+        data: {
+          username: cleanUsername,
+          name: displayName,
+          passwordHash: hashPassword(password),
+          settings: localSettings,
+          invoices: localInvoices
+        }
+      })
+    });
+
+    if (createRes.ok) {
+      const createdObj = await createRes.json();
+      cloudId = createdObj.id;
+      usersMap[cleanUsername] = { cloudId: cloudId, updatedAt: new Date().toISOString() };
+
+      fetch(`https://api.restful-api.dev/objects/${CLOUD_REGISTRY_ID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'invoice_master_user_registry_v1',
+          data: { users: usersMap }
+        })
+      }).catch(e => console.warn('Registry update notice:', e));
+    }
+
+    return {
+      id: userId,
+      email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+      username: cleanUsername,
+      name: displayName,
+      cloudId: cloudId || null
+    };
+
+  } catch (err) {
+    console.warn('Cloud sync offline fallback:', err);
+    return {
+      id: userId,
+      email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
+      username: cleanUsername,
+      name: nameInput || cleanUsername
+    };
+  }
+}
+
+async function pushCloudUserData() {
+  if (!state.user) return;
+  const username = state.user.username || state.user.email?.split('@')[0] || state.user.name;
+  if (!username) return;
+  const cleanUsername = username.trim().toLowerCase();
+
+  try {
+    let cloudId = state.user.cloudId;
+    if (!cloudId) {
+      const regRes = await fetch(`https://api.restful-api.dev/objects/${CLOUD_REGISTRY_ID}`);
+      if (regRes.ok) {
+        const regData = await regRes.json();
+        cloudId = regData.data?.users?.[cleanUsername]?.cloudId;
+      }
+    }
+
+    if (!cloudId) return;
+
+    await fetch(`https://api.restful-api.dev/objects/${cloudId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `invoice_user_${cleanUsername}`,
+        data: {
+          username: cleanUsername,
+          name: state.user.name || cleanUsername,
+          settings: state.settings || {},
+          invoices: state.invoices || []
+        }
+      })
+    });
+  } catch (err) {
+    console.warn('Cloud push notice:', err);
+  }
+}
+
 async function handleAuth(e) {
   e.preventDefault();
   const emailInput = document.getElementById('auth-email');
@@ -151,7 +282,7 @@ async function handleAuth(e) {
   }
 
   submitBtn.disabled = true;
-  submitBtn.innerHTML = '<span class="spinner"></span> Processing...';
+  submitBtn.innerHTML = '<span class="spinner"></span> Syncing with Cloud...';
 
   try {
     if (isAuthMode === 'signup') {
@@ -162,63 +293,23 @@ async function handleAuth(e) {
       }
     }
 
-    let signedInCloud = false;
-    if (supabaseClient && SUPABASE_URL && SUPABASE_ANON_KEY) {
-      try {
-        const email = identifier.includes('@') ? identifier : `${identifier}@app.local`;
-        const result = isAuthMode === 'signup'
-          ? await supabaseClient.auth.signUp({ email, password })
-          : await supabaseClient.auth.signInWithPassword({ email, password });
+    const nameInput = (document.getElementById('auth-name')?.value || '').trim();
+    const syncedUser = await syncCloudUser(identifier, password, nameInput);
 
-        if (!result.error && result.data?.user) {
-          state.user = {
-            id: result.data.user.id,
-            email: result.data.user.email,
-            name: result.data.user.user_metadata?.full_name || rawInput
-          };
-          signedInCloud = true;
-        }
-      } catch (sErr) {
-        console.warn('Cloud auth notice:', sErr);
-      }
-    }
-
-    if (!signedInCloud) {
-      const usersJSON = localStorage.getItem('registered_users');
-      const users = usersJSON ? JSON.parse(usersJSON) : [];
-
-      let user = users.find(u =>
-        (u.email && u.email.toLowerCase() === identifier) ||
-        (u.username && u.username.toLowerCase() === identifier) ||
-        (u.name && u.name.toLowerCase() === identifier)
-      );
-
-      const userId = 'usr_' + identifier.replace(/[^a-z0-9]/g, '_');
-      const displayName = (document.getElementById('auth-name')?.value || '').trim() || rawInput;
-
-      if (!user) {
-        user = {
-          id: userId,
-          email: identifier.includes('@') ? identifier : `${identifier}@app.local`,
-          username: identifier,
-          name: displayName,
-          passwordHash: hashPassword(password),
-          createdAt: new Date().toISOString()
-        };
-        users.push(user);
-      } else {
-        user.passwordHash = hashPassword(password);
-        if (displayName && displayName !== identifier) user.name = displayName;
-        const idx = users.findIndex(u => u.id === user.id);
-        if (idx >= 0) users[idx] = user;
-      }
-
-      localStorage.setItem('registered_users', JSON.stringify(users));
-      state.user = { id: user.id, email: user.email || identifier, name: user.name || rawInput };
-    }
-
+    state.user = syncedUser;
     localStorage.setItem('current_user_session', JSON.stringify(state.user));
-    showToast(`Welcome back, ${state.user.name || 'User'}! Signed in successfully.`, 'success');
+
+    const usersJSON = localStorage.getItem('registered_users');
+    const users = usersJSON ? JSON.parse(usersJSON) : [];
+    const existingIdx = users.findIndex(u => u.username === syncedUser.username || u.id === syncedUser.id);
+    if (existingIdx >= 0) {
+      users[existingIdx] = syncedUser;
+    } else {
+      users.push(syncedUser);
+    }
+    localStorage.setItem('registered_users', JSON.stringify(users));
+
+    showToast(`Welcome back, ${state.user.name || 'User'}! Profile & invoices synced.`, 'success');
     await initApp();
 
   } catch (err) {

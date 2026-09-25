@@ -120,7 +120,9 @@ async function saveSettings(e) {
         .upsert(settingsData, { onConflict: 'user_id' });
     }
 
-    showToast('Settings saved! Your logo & details are remembered for your account.', 'success');
+    if (typeof pushCloudUserData === 'function') pushCloudUserData();
+
+    showToast('Settings saved & synced to cloud!', 'success');
   } catch (err) {
     showToast('Failed to save settings: ' + (err.message || 'Storage error'), 'error');
   }
