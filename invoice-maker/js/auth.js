@@ -156,14 +156,21 @@ function toggleAuthMode() {
 // Cloud Storage & Global User Registry
 const REGISTRY_ID = 'ff808181a09d98f701a0d634e1f80be7';
 
+// Ultra-fast network fetch helper with strict timeout (prevents mobile data carrier hanging)
+async function fetchWithTimeout(url, options = {}, timeoutMs = 1800) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function fetchRegistry() {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`https://api.restful-api.dev/objects/${REGISTRY_ID}`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
+    const res = await fetchWithTimeout(`https://api.restful-api.dev/objects/${REGISTRY_ID}`, {}, 1800);
     if (res.ok) {
       const item = await res.json();
       const users = item.data?.users || {};
@@ -171,10 +178,10 @@ async function fetchRegistry() {
       return users;
     }
   } catch (e) {
-    console.warn('Fetch registry notice:', e);
+    console.warn('Cloud registry fetch skipped (mobile data/offline mode):', e.message);
   }
 
-  // Fallback to local cache if network/API is slow or offline
+  // Fallback to local cache if network/API is slow, blocked by mobile ISP, or offline
   try {
     const cached = localStorage.getItem('cloud_registry_cache');
     if (cached) return JSON.parse(cached);
@@ -186,20 +193,16 @@ async function fetchRegistry() {
 async function saveRegistry(usersMap) {
   try { localStorage.setItem('cloud_registry_cache', JSON.stringify(usersMap)); } catch (e) {}
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    await fetch(`https://api.restful-api.dev/objects/${REGISTRY_ID}`, {
+    await fetchWithTimeout(`https://api.restful-api.dev/objects/${REGISTRY_ID}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'inv_global_user_registry',
         data: { users: usersMap }
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
+      })
+    }, 2000);
   } catch (e) {
-    console.warn('Save registry notice:', e);
+    console.warn('Save registry background notice:', e.message);
   }
 }
 
@@ -226,6 +229,34 @@ async function signInCloudUser(identifier, password) {
   const cleanPassword = (password || '').trim();
   const inputHash = hashPassword(cleanPassword);
 
+  // 1. FAST PATH: Check local storage on device first (instant 0ms login, works 100% on mobile data / offline!)
+  const localUsersJSON = localStorage.getItem('registered_users');
+  const localUsers = localUsersJSON ? JSON.parse(localUsersJSON) : [];
+  const foundLocal = localUsers.find(u => 
+    u.username === cleanUsername || 
+    u.email?.toLowerCase() === cleanUsername ||
+    u.username === cleanUsername.split('@')[0]
+  );
+
+  if (foundLocal && verifyPassword(cleanPassword, foundLocal.passwordHash)) {
+    // Background cloud sync without blocking login
+    fetchRegistry().then(reg => {
+      if (!findUserInRegistry(reg, cleanUsername)) {
+        signUpCloudUser(cleanUsername, cleanPassword, foundLocal.name || cleanUsername).catch(() => {});
+      }
+    }).catch(() => {});
+
+    return {
+      id: foundLocal.id || userId,
+      email: foundLocal.email || (identifier.includes('@') ? identifier : `${cleanUsername}@app.local`),
+      username: cleanUsername,
+      name: foundLocal.name || cleanUsername,
+      objectId: foundLocal.objectId || '',
+      passwordHash: inputHash
+    };
+  }
+
+  // 2. Query cloud registry with strict 1.8s timeout
   let registry = await fetchRegistry();
   const match = findUserInRegistry(registry, cleanUsername);
 
@@ -238,16 +269,16 @@ async function signInCloudUser(identifier, password) {
       throw new Error(`Invalid credentials: Incorrect password for "${cleanUsername}". Check for typos or capitalization.`);
     }
 
-    // Upgrade hash if it was a legacy or case variation
+    // Upgrade hash in background if it was a legacy or case variation
     if (userEntry.passwordHash !== inputHash) {
       userEntry.passwordHash = inputHash;
-      saveRegistry(registry);
+      saveRegistry(registry).catch(() => {});
     }
 
-    // Fetch user invoices and settings from cloud object
+    // Fetch user invoices and settings from cloud object with short timeout
     if (userEntry.objectId) {
       try {
-        const userObjRes = await fetch(`https://api.restful-api.dev/objects/${userEntry.objectId}`);
+        const userObjRes = await fetchWithTimeout(`https://api.restful-api.dev/objects/${userEntry.objectId}`, {}, 1800);
         if (userObjRes.ok) {
           const userObj = await userObjRes.json();
           const cloudData = userObj.data || {};
@@ -271,7 +302,7 @@ async function signInCloudUser(identifier, password) {
           };
         }
       } catch (e) {
-        console.warn('Fetch user object notice:', e);
+        console.warn('Cloud user data fetch timed out on mobile network:', e.message);
       }
     }
 
@@ -285,21 +316,12 @@ async function signInCloudUser(identifier, password) {
     };
   }
 
-  // Check local storage on this machine
-  const localUsersJSON = localStorage.getItem('registered_users');
-  const localUsers = localUsersJSON ? JSON.parse(localUsersJSON) : [];
-  const foundLocal = localUsers.find(u => 
-    u.username === cleanUsername || 
-    u.email?.toLowerCase() === cleanUsername ||
-    u.username === cleanUsername.split('@')[0]
-  );
-
+  // 3. If user is in local storage, sync in background and return
   if (foundLocal) {
-    // Sync local account to cloud registry and sign in
     return await signUpCloudUser(cleanUsername, cleanPassword, foundLocal.name || cleanUsername);
   }
 
-  // User is not found anywhere yet — auto-create seamlessly so user is never blocked!
+  // 4. User is not found anywhere yet — auto-create and sign in seamlessly!
   return await signUpCloudUser(cleanUsername, cleanPassword, cleanUsername);
 }
 
@@ -316,7 +338,7 @@ async function signUpCloudUser(identifier, password, nameInput = '') {
 
   if (!objectId) {
     try {
-      const createRes = await fetch('https://api.restful-api.dev/objects', {
+      const createRes = await fetchWithTimeout('https://api.restful-api.dev/objects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,14 +350,14 @@ async function signUpCloudUser(identifier, password, nameInput = '') {
             updatedAt: new Date().toISOString()
           }
         })
-      });
+      }, 2000);
 
       if (createRes.ok) {
         const createdObj = await createRes.json();
         objectId = createdObj.id;
       }
     } catch (e) {
-      console.warn('Create user object error:', e);
+      console.warn('Cloud object creation notice (continuing in local mode):', e.message);
     }
   }
 
@@ -351,14 +373,14 @@ async function signUpCloudUser(identifier, password, nameInput = '') {
     registry[prefix] = registry[cleanUsername];
   }
 
-  await saveRegistry(registry);
+  saveRegistry(registry).catch(() => {});
 
   return {
     id: userId,
     email: identifier.includes('@') ? identifier : `${cleanUsername}@app.local`,
     username: cleanUsername,
     name: name,
-    objectId: objectId,
+    objectId: objectId || '',
     passwordHash: inputHash
   };
 }
@@ -399,7 +421,7 @@ async function resetPasswordAndLogin(identifier) {
   }
 }
 
-// Push local invoices/settings to cloud
+// Push local invoices/settings to cloud (non-blocking, timeout protected)
 async function pushCloudUserData() {
   if (!state.user) return;
   const username = state.user.username || state.user.email?.split('@')[0] || state.user.name;
@@ -417,9 +439,8 @@ async function pushCloudUserData() {
       state.user.objectId = objectId;
       localStorage.setItem('current_user_session', JSON.stringify(state.user));
     } else {
-      // Auto-create object
       try {
-        const createRes = await fetch('https://api.restful-api.dev/objects', {
+        const createRes = await fetchWithTimeout('https://api.restful-api.dev/objects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -431,7 +452,7 @@ async function pushCloudUserData() {
               updatedAt: new Date().toISOString()
             }
           })
-        });
+        }, 2000);
         if (createRes.ok) {
           const created = await createRes.json();
           objectId = created.id;
@@ -443,17 +464,17 @@ async function pushCloudUserData() {
             passwordHash: state.user.passwordHash || '',
             name: state.user.name || cleanUsername
           };
-          await saveRegistry(registry);
+          saveRegistry(registry).catch(() => {});
         }
       } catch (err) {
-        console.warn('Auto create user object notice:', err);
+        console.warn('Auto create user object notice:', err.message);
       }
     }
   }
 
   if (objectId) {
     try {
-      await fetch(`https://api.restful-api.dev/objects/${objectId}`, {
+      await fetchWithTimeout(`https://api.restful-api.dev/objects/${objectId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -465,14 +486,14 @@ async function pushCloudUserData() {
             updatedAt: new Date().toISOString()
           }
         })
-      });
+      }, 2000);
     } catch (e) {
-      console.warn('Push cloud data error:', e);
+      console.warn('Push cloud data notice:', e.message);
     }
   }
 }
 
-// Background session cloud sync
+// Background session cloud sync (non-blocking, timeout protected)
 async function syncSessionToCloud(user) {
   if (!user) return;
   const username = (user.username || user.email?.split('@')[0] || user.name || '').trim().toLowerCase();
@@ -488,8 +509,7 @@ async function syncSessionToCloud(user) {
     const localInvoices = JSON.parse(localStorage.getItem(`invoice_data_${userId}`) || localStorage.getItem('invoice_data') || '[]');
 
     if (!objectId) {
-      // Create cloud object for this user
-      const createRes = await fetch('https://api.restful-api.dev/objects', {
+      const createRes = await fetchWithTimeout('https://api.restful-api.dev/objects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -501,9 +521,9 @@ async function syncSessionToCloud(user) {
             updatedAt: new Date().toISOString()
           }
         })
-      });
+      }, 2000);
 
-      if (createRes.ok) {
+      if (createRes && createRes.ok) {
         const createdObj = await createRes.json();
         objectId = createdObj.id;
         user.objectId = objectId;
@@ -511,7 +531,6 @@ async function syncSessionToCloud(user) {
       }
     }
 
-    // Ensure registry entry is up to date
     const localUsersJSON = localStorage.getItem('registered_users');
     const localUsers = localUsersJSON ? JSON.parse(localUsersJSON) : [];
     const localUser = localUsers.find(u => u.username === username || u.id === user.id);
@@ -526,13 +545,12 @@ async function syncSessionToCloud(user) {
       if (username.includes('@')) {
         registry[username.split('@')[0]] = registry[username];
       }
-      await saveRegistry(registry);
+      saveRegistry(registry).catch(() => {});
     }
 
-    // Sync cloud data with local data
     if (objectId) {
-      const getRes = await fetch(`https://api.restful-api.dev/objects/${objectId}`);
-      if (getRes.ok) {
+      const getRes = await fetchWithTimeout(`https://api.restful-api.dev/objects/${objectId}`, {}, 2000);
+      if (getRes && getRes.ok) {
         const cloudObj = await getRes.json();
         const cloudData = cloudObj.data || {};
 
@@ -567,7 +585,7 @@ async function syncSessionToCloud(user) {
         }
 
         if (shouldPush) {
-          await fetch(`https://api.restful-api.dev/objects/${objectId}`, {
+          await fetchWithTimeout(`https://api.restful-api.dev/objects/${objectId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -579,12 +597,12 @@ async function syncSessionToCloud(user) {
                 updatedAt: new Date().toISOString()
               }
             })
-          });
+          }, 2000);
         }
       }
     }
   } catch (e) {
-    console.warn('Sync session to cloud notice:', e);
+    console.warn('Sync session background notice:', e.message);
   }
 }
 
@@ -606,7 +624,7 @@ async function handleAuth(e) {
   }
 
   submitBtn.disabled = true;
-  submitBtn.innerHTML = '<span class="spinner"></span> Authenticating & Syncing...';
+  submitBtn.innerHTML = '<span class="spinner"></span> Signing In...';
 
   try {
     let syncedUser;
@@ -635,7 +653,7 @@ async function handleAuth(e) {
     }
     localStorage.setItem('registered_users', JSON.stringify(users));
 
-    showToast(`Welcome back, ${state.user.name || 'User'}! Account & invoices synced.`, 'success');
+    showToast(`Welcome back, ${state.user.name || 'User'}!`, 'success');
     await initApp();
 
   } catch (err) {
