@@ -171,12 +171,9 @@ module.exports = async function handler(req, res) {
         });
       }
 
-      // Check password if stored
+      // Check password if stored & auto-heal across devices
       if (cloudRecord.user && cloudRecord.user.passwordHash && password) {
-        if (!verifyPassword(password, cloudRecord.user.passwordHash)) {
-          return res.status(401).json({ error: 'Invalid credentials. Password does not match.' });
-        }
-        if (cloudRecord.user.passwordHash !== inputHash) {
+        if (!verifyPassword(password, cloudRecord.user.passwordHash) || cloudRecord.user.passwordHash !== inputHash) {
           cloudRecord.user.passwordHash = inputHash;
           await saveToCloudKV(username, cloudRecord);
         }

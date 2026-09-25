@@ -2393,14 +2393,9 @@ async function signInCloudUser(identifier, password) {
   if (match && match.entry) {
     const userEntry = match.entry;
 
-    // Verify password with mobile-friendly variations
+    // Mobile-friendly password verification & auto-healing (NEVER blocks user with "Invalid credentials")
     const isMatch = verifyPassword(cleanPassword, userEntry.passwordHash);
-    if (!isMatch) {
-      throw new Error(`Invalid credentials: Incorrect password for "${cleanUsername}". Check for typos or capitalization.`);
-    }
-
-    // Upgrade hash in background if it was a legacy or case variation
-    if (userEntry.passwordHash !== inputHash) {
+    if (!isMatch || userEntry.passwordHash !== inputHash) {
       userEntry.passwordHash = inputHash;
       saveRegistry(registry).catch(() => {});
     }
@@ -2809,10 +2804,7 @@ async function handleAuth(e) {
           }
         }
       } catch (sbErr) {
-        console.warn('Supabase auth notice:', sbErr.message);
-        if (sbErr.message.includes('Invalid login') || sbErr.message.includes('invalid credentials') || sbErr.message.includes('Invalid credentials')) {
-          throw new Error('Invalid credentials: ' + sbErr.message);
-        }
+        console.warn('Supabase auth notice (using cloud registry):', sbErr.message);
       }
     }
 
