@@ -135,22 +135,46 @@ function toggleAuthMode() {
 }
 
 // Handle Authentication Submit (Sign In / Sign Up)
+async function callSyncAPI(payload) {
+  try {
+    let res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res || res.status === 404) {
+      res = await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+    return res;
+  } catch (err) {
+    try {
+      return await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 async function signInCloudUser(identifier, password) {
   const cleanUsername = identifier.trim().toLowerCase();
   const userId = 'usr_' + cleanUsername.replace(/[^a-z0-9]/g, '_');
 
   try {
-    const res = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'signin',
-        username: cleanUsername,
-        password: password
-      })
+    const res = await callSyncAPI({
+      action: 'signin',
+      username: cleanUsername,
+      password: password
     });
 
-    if (res.ok) {
+    if (res && res.ok) {
       const data = await res.json();
       if (data.success && data.found) {
         if (data.settings && Object.keys(data.settings).length > 0) {
@@ -169,7 +193,7 @@ async function signInCloudUser(identifier, password) {
           name: data.user?.name || cleanUsername
         };
       }
-    } else {
+    } else if (res) {
       const errData = await res.json().catch(() => ({}));
       if (errData.error) {
         throw new Error(errData.error);
@@ -207,20 +231,16 @@ async function signUpCloudUser(identifier, password, nameInput = '') {
   const name = nameInput || cleanUsername;
 
   try {
-    const res = await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'signup',
-        username: cleanUsername,
-        password: password,
-        name: name,
-        settings: state.settings || {},
-        invoices: state.invoices || []
-      })
+    const res = await callSyncAPI({
+      action: 'signup',
+      username: cleanUsername,
+      password: password,
+      name: name,
+      settings: state.settings || {},
+      invoices: state.invoices || []
     });
 
-    if (res.ok) {
+    if (res && res.ok) {
       const data = await res.json();
       if (data.settings) {
         state.settings = data.settings;
@@ -236,7 +256,7 @@ async function signUpCloudUser(identifier, password, nameInput = '') {
         username: cleanUsername,
         name: data.user?.name || name
       };
-    } else {
+    } else if (res) {
       const errData = await res.json().catch(() => ({}));
       if (errData.error) {
         throw new Error(errData.error);
@@ -264,16 +284,12 @@ async function pushCloudUserData() {
   const cleanUsername = username.trim().toLowerCase();
 
   try {
-    await fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'push',
-        username: cleanUsername,
-        name: state.user.name || cleanUsername,
-        settings: state.settings || {},
-        invoices: state.invoices || []
-      })
+    await callSyncAPI({
+      action: 'push',
+      username: cleanUsername,
+      name: state.user.name || cleanUsername,
+      settings: state.settings || {},
+      invoices: state.invoices || []
     });
   } catch (err) {
     console.warn('Cloud push notice:', err);
