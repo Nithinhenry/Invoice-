@@ -1,0 +1,6 @@
+Antigravity IDE/
+ui-ux-skill/
+node_modules/
+*.log
+*.pdf
+.git/
