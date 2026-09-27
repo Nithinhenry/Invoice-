@@ -4811,7 +4811,7 @@ async function forceCleanPhoneCache() {
 // and broadcasts SW_UPDATED to all open tabs → they auto-reload.
 // This works on ALL devices without any manual cache clearing.
 // ============================================================
-const APP_VERSION = 'v20260927.07';
+const APP_VERSION = 'v20260927.08';
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
