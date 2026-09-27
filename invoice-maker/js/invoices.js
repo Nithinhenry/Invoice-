@@ -34,13 +34,16 @@ async function loadInvoices() {
   }
 
   const saved = localStorage.getItem(getInvoicesKey()) || localStorage.getItem('invoice_data_guest') || localStorage.getItem('invoice_data');
-  if (saved) {
-    state.invoices = JSON.parse(saved);
-    if (!localStorage.getItem(getInvoicesKey())) {
-      localStorage.setItem(getInvoicesKey(), JSON.stringify(state.invoices));
-    }
-  } else {
+  try {
+    state.invoices = saved ? JSON.parse(saved) : [];
+  } catch (e) {
     state.invoices = [];
+  }
+  if (!Array.isArray(state.invoices)) {
+    state.invoices = [];
+  }
+  if (saved && !localStorage.getItem(getInvoicesKey())) {
+    localStorage.setItem(getInvoicesKey(), JSON.stringify(state.invoices));
   }
 }
 

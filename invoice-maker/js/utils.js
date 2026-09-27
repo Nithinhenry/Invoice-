@@ -4,7 +4,7 @@
 
 function getCurrency() {
   let sym = state.settings?.currency_symbol;
-  if (!sym || sym.trim() === '₹' || sym.includes('₹') || sym === 'INR') {
+  if (!sym || typeof sym !== 'string' || sym.trim() === '₹' || sym.includes('₹') || sym === 'INR') {
     return 'Rs. ';
   }
   return sym.trim() + ' ';

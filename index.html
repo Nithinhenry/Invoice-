@@ -3503,7 +3503,14 @@ async function loadInvoices() {
   }
 
   const saved = localStorage.getItem(getInvoicesKey()) || localStorage.getItem('invoice_data_guest') || localStorage.getItem('invoice_data');
-  state.invoices = saved ? JSON.parse(saved) : [];
+  try {
+    state.invoices = saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    state.invoices = [];
+  }
+  if (!Array.isArray(state.invoices)) {
+    state.invoices = [];
+  }
 
   if (saved && !localStorage.getItem(getInvoicesKey())) {
     localStorage.setItem(getInvoicesKey(), JSON.stringify(state.invoices));
@@ -4673,7 +4680,7 @@ function numberToWords(num) {
 // ============================================
 function getCurrency() {
   let sym = state.settings?.currency_symbol;
-  if (!sym || sym.trim() === '₹' || sym.includes('₹') || sym === 'INR') {
+  if (!sym || typeof sym !== 'string' || sym.trim() === '₹' || sym.includes('₹') || sym === 'INR') {
     return 'Rs. ';
   }
   return sym.trim() + ' ';
