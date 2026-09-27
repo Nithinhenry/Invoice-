@@ -126,9 +126,19 @@ function showToast(message, type = 'info') {
 // ============================================
 function navigateTo(viewName) {
   state.currentView = viewName;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => {
+    v.classList.remove('active');
+    v.style.display = 'none';
+  });
   const targetView = document.getElementById('view-' + viewName);
-  if (targetView) targetView.classList.add('active');
+  if (targetView) {
+    targetView.classList.add('active');
+    targetView.style.display = 'block';
+    targetView.style.opacity = '1';
+    targetView.style.visibility = 'visible';
+  } else {
+    alert("CRITICAL ERROR: Could not find view element: view-" + viewName);
+  }
 
   document.querySelectorAll('.nav-item[data-view]').forEach(item => {
     item.classList.toggle('active', item.dataset.view === viewName);
