@@ -4774,7 +4774,7 @@ async function forceCleanPhoneCache() {
 }
 
 // Force-clear any stale Service Worker caches from previous versions
-const BUILD_VERSION = 'v2026.09.27.05';
+const BUILD_VERSION = 'v2026.09.27.06';
 if (localStorage.getItem('app_build_version') !== BUILD_VERSION) {
   localStorage.setItem('app_build_version', BUILD_VERSION);
   if ('caches' in window) {
