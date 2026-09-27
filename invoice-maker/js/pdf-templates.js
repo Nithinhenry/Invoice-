@@ -231,7 +231,30 @@ function downloadPDF() {
   }
 
   // ---- ITEMS TABLE ----
-  const tableRows = (invoice.items || []).map((item, idx) => [
+  let itemsToRender = invoice.items || [];
+  if (!itemsToRender || itemsToRender.length === 0) {
+    const previewTable = document.querySelector('#invoice-preview-content table');
+    if (previewTable) {
+      itemsToRender = [];
+      const trs = previewTable.querySelectorAll('tbody tr');
+      trs.forEach(tr => {
+        const cells = tr.querySelectorAll('td');
+        if (cells.length >= 7) {
+          const parseVal = (str) => parseFloat(str.replace(/[^0-9.]/g, '')) || 0;
+          itemsToRender.push({
+            description: cells[1].textContent.trim(),
+            hsn_code: cells[2].textContent.trim(),
+            quantity: cells[3].textContent.trim(),
+            unit: cells[4].textContent.trim(),
+            unit_price: parseVal(cells[5].textContent),
+            amount: parseVal(cells[6].textContent)
+          });
+        }
+      });
+    }
+  }
+
+  const tableRows = itemsToRender.map((item, idx) => [
     (idx + 1).toString(),
     cleanPdfText(item.description || ''),
     cleanPdfText(item.hsn_code || ''),
