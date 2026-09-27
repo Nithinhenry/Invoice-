@@ -76,6 +76,26 @@ function downloadPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const s = state.settings || {};
+
+  // === NUCLEAR CURRENCY FIX ===
+  // Intercept doc.text at jsPDF level — strips any Unicode outside WinAnsi range
+  // This catches ₹ (U+20B9) which jsPDF maps to ¹ causing garbled output
+  const _origText = doc.text.bind(doc);
+  doc.text = function(text, x, y, opts, transform) {
+    if (typeof text === 'string') {
+      text = text
+        .replace(/₹/g, 'Rs. ')
+        .replace(/\u20B9/g, 'Rs. ')
+        .replace(/[^\x00-\xFF]/g, '');
+    } else if (Array.isArray(text)) {
+      text = text.map(t => typeof t === 'string'
+        ? t.replace(/₹/g, 'Rs. ').replace(/\u20B9/g, 'Rs. ').replace(/[^\x00-\xFF]/g, '')
+        : t
+      );
+    }
+    return _origText(text, x, y, opts, transform);
+  };
+
   const pdfCurrency = cleanPdfText(getCurrency());
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
