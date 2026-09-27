@@ -3587,6 +3587,7 @@ async function startNewInvoice() {
   const prefix = state.settings?.invoice_prefix || 'INV';
   const year = new Date().getFullYear();
 
+  let invNum = '';
   if (supabaseClient && state.user?.id) {
     try {
       const { data, error } = await supabaseClient.rpc('get_next_invoice_number', {
@@ -3594,23 +3595,27 @@ async function startNewInvoice() {
         p_year: year,
         p_prefix: prefix
       });
-      if (!error && data) document.getElementById('inv-number').value = data;
+      if (!error && data) invNum = data;
     } catch (err) {
-      const count = state.invoices.length + 1;
-      document.getElementById('inv-number').value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+      console.warn('RPC failed for invoice number, fallback to local count', err);
     }
-  } else {
-    const count = state.invoices.length + 1;
-    document.getElementById('inv-number').value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
   }
+  if (!invNum) {
+    const count = (Array.isArray(state.invoices) ? state.invoices.length : 0) + 1;
+    invNum = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+  }
+  const invNumEl = document.getElementById('inv-number');
+  if (invNumEl) invNumEl.value = invNum;
 
   // Clear items and add one empty row
-  document.getElementById('items-tbody').innerHTML = '';
-  addItemRow();
+  const tbody = document.getElementById('items-tbody');
+  if (tbody) tbody.innerHTML = '';
+  if (typeof addItemRow === 'function') addItemRow();
 
-  recalculateTotals();
+  if (typeof recalculateTotals === 'function') recalculateTotals();
   navigateTo('invoice-form');
-  document.querySelector('.nav-item[data-view="invoice-form"]').classList.add('active');
+  const formNavItem = document.querySelector('.nav-item[data-view="invoice-form"]');
+  if (formNavItem) formNavItem.classList.add('active');
 }
 
 async function editInvoice(invoiceId) {

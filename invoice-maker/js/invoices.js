@@ -165,15 +165,18 @@ async function startNewInvoice() {
   const prefix = state.settings?.invoice_prefix || 'INV';
   const year = new Date().getFullYear();
 
-  const count = state.invoices.length + 1;
-  document.getElementById('inv-number').value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+  const count = (Array.isArray(state.invoices) ? state.invoices.length : 0) + 1;
+  const invNumEl = document.getElementById('inv-number');
+  if (invNumEl) invNumEl.value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
 
   // Clear items and add one empty row
-  document.getElementById('items-tbody').innerHTML = '';
-  addItemRow();
-  recalculateTotals();
+  const tbody = document.getElementById('items-tbody');
+  if (tbody) tbody.innerHTML = '';
+  if (typeof addItemRow === 'function') addItemRow();
+  if (typeof recalculateTotals === 'function') recalculateTotals();
   navigateTo('invoice-form');
-  document.querySelector('.nav-item[data-view="invoice-form"]').classList.add('active');
+  const formNavItem = document.querySelector('.nav-item[data-view="invoice-form"]');
+  if (formNavItem) formNavItem.classList.add('active');
 }
 
 
