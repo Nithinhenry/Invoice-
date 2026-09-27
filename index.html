@@ -4773,20 +4773,30 @@ async function forceCleanPhoneCache() {
   }
 }
 
-// Force-clear any stale Service Worker caches from previous versions
-const BUILD_VERSION = 'v2026.09.27.06';
-if (localStorage.getItem('app_build_version') !== BUILD_VERSION) {
-  localStorage.setItem('app_build_version', BUILD_VERSION);
-  if ('caches' in window) {
-    caches.keys().then((names) => {
-      for (const n of names) caches.delete(n);
-    }).catch(() => {});
-  }
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const r of registrations) r.unregister();
-    }).catch(() => {});
-  }
+// ============================================================
+// SERVICE WORKER REGISTRATION + AUTO-UPDATE
+// When we deploy new code, the SW detects the version change
+// and broadcasts SW_UPDATED to all open tabs → they auto-reload.
+// This works on ALL devices without any manual cache clearing.
+// ============================================================
+const APP_VERSION = 'v20260927.07';
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+    .then(reg => {
+      // Listen for SW messages (version update broadcast)
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SW_UPDATED') {
+          console.log('[App] New version deployed:', event.data.version, '— reloading...');
+          // Small delay so the SW finishes activating before reload
+          setTimeout(() => window.location.reload(true), 500);
+        }
+      });
+
+      // Force SW to check for updates right now (not just on next page load)
+      reg.update().catch(() => {});
+    })
+    .catch(err => console.warn('[SW] Registration failed:', err));
 }
 
 </script>

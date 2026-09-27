@@ -829,16 +829,18 @@ async function forceCleanPhoneCache() {
   }
 }
 
-// Force-clear any stale Service Worker caches from previous versions
+// Service Worker — auto-reload all devices when new version deployed
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const r of registrations) r.unregister();
-  }).catch(() => {});
-}
-if ('caches' in window) {
-  caches.keys().then((names) => {
-    for (const n of names) caches.delete(n);
-  }).catch(() => {});
+  navigator.serviceWorker.register('/invoice-maker/sw.js', { updateViaCache: 'none' })
+    .then(reg => {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SW_UPDATED') {
+          setTimeout(() => window.location.reload(true), 500);
+        }
+      });
+      reg.update().catch(() => {});
+    })
+    .catch(() => {});
 }
 </script>
 </body>
