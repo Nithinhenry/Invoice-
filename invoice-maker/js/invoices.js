@@ -126,57 +126,62 @@ function onDocTypeChange() {
 }
 
 async function startNewInvoice() {
-  if (!isCompanyProfileComplete()) {
-    showOnboardingModal();
-    return;
-  }
-
-  state.currentInvoiceId = null;
-  document.getElementById('invoice-form-title').textContent = 'New Document';
-  document.getElementById('invoice-form-subtitle').textContent = 'Create a professional quotation or invoice';
-  document.getElementById('invoice-form').reset();
-
-  // Set defaults
-  document.getElementById('inv-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('inv-discount').value = 0;
-  document.getElementById('inv-doc-type').value = 'QUOTATION';
-  document.getElementById('inv-specs').value = '';
-  document.getElementById('inv-subject').value = '';
-  document.getElementById('inv-opener').value = '';
-  document.getElementById('inv-closer').value = '';
-
-  onDocTypeChange();
-
-  // Pre-fill terms from settings
-  if (state.settings?.default_terms) {
-    document.getElementById('inv-terms').value = state.settings.default_terms;
-  }
-
-  // Set default GST rate from settings
-  if (state.settings?.default_gst_rate != null) {
-    const rateSelect = document.getElementById('inv-gst-rate');
-    const rate = String(state.settings.default_gst_rate);
-    for (let opt of rateSelect.options) {
-      if (opt.value === rate) { opt.selected = true; break; }
+  try {
+    if (!isCompanyProfileComplete()) {
+      showOnboardingModal();
+      return;
     }
+
+    state.currentInvoiceId = null;
+    document.getElementById('invoice-form-title').textContent = 'New Document';
+    document.getElementById('invoice-form-subtitle').textContent = 'Create a professional quotation or invoice';
+    document.getElementById('invoice-form').reset();
+
+    // Set defaults
+    document.getElementById('inv-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('inv-discount').value = 0;
+    document.getElementById('inv-doc-type').value = 'QUOTATION';
+    document.getElementById('inv-specs').value = '';
+    document.getElementById('inv-subject').value = '';
+    document.getElementById('inv-opener').value = '';
+    document.getElementById('inv-closer').value = '';
+
+    onDocTypeChange();
+
+    // Pre-fill terms from settings
+    if (state.settings?.default_terms) {
+      document.getElementById('inv-terms').value = state.settings.default_terms;
+    }
+
+    // Set default GST rate from settings
+    if (state.settings?.default_gst_rate != null) {
+      const rateSelect = document.getElementById('inv-gst-rate');
+      const rate = String(state.settings.default_gst_rate);
+      for (let opt of rateSelect.options) {
+        if (opt.value === rate) { opt.selected = true; break; }
+      }
+    }
+
+    // Get next invoice number
+    const prefix = state.settings?.invoice_prefix || 'INV';
+    const year = new Date().getFullYear();
+
+    const count = (Array.isArray(state.invoices) ? state.invoices.length : 0) + 1;
+    const invNumEl = document.getElementById('inv-number');
+    if (invNumEl) invNumEl.value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+
+    // Clear items and add one empty row
+    const tbody = document.getElementById('items-tbody');
+    if (tbody) tbody.innerHTML = '';
+    if (typeof addItemRow === 'function') addItemRow();
+    if (typeof recalculateTotals === 'function') recalculateTotals();
+    navigateTo('invoice-form');
+    const formNavItem = document.querySelector('.nav-item[data-view="invoice-form"]');
+    if (formNavItem) formNavItem.classList.add('active');
+  } catch (err) {
+    console.error(err);
+    alert('Error starting new invoice: ' + err.message + '\n' + err.stack);
   }
-
-  // Get next invoice number
-  const prefix = state.settings?.invoice_prefix || 'INV';
-  const year = new Date().getFullYear();
-
-  const count = (Array.isArray(state.invoices) ? state.invoices.length : 0) + 1;
-  const invNumEl = document.getElementById('inv-number');
-  if (invNumEl) invNumEl.value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
-
-  // Clear items and add one empty row
-  const tbody = document.getElementById('items-tbody');
-  if (tbody) tbody.innerHTML = '';
-  if (typeof addItemRow === 'function') addItemRow();
-  if (typeof recalculateTotals === 'function') recalculateTotals();
-  navigateTo('invoice-form');
-  const formNavItem = document.querySelector('.nav-item[data-view="invoice-form"]');
-  if (formNavItem) formNavItem.classList.add('active');
 }
 
 
