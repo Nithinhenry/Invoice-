@@ -3,9 +3,23 @@
 // ============================================
 
 function getCurrency() {
-  let sym = state.settings?.currency_symbol || 'Rs. ';
-  if (sym === '₹') sym = 'Rs. ';
-  return sym;
+  let sym = state.settings?.currency_symbol;
+  if (!sym || sym.trim() === '₹' || sym.includes('₹') || sym === 'INR') {
+    return 'Rs. ';
+  }
+  return sym.trim() + ' ';
+}
+
+function cleanPdfText(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/₹/g, 'Rs. ')
+    .replace(/[\u20B9]/g, 'Rs. ')
+    .replace(/•/g, '- ')
+    .replace(/[–—]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\x00-\x7F\xA0-\xFF]/g, '');
 }
 
 function escapeHtml(str) {

@@ -50,13 +50,13 @@ async function showInvoicePreview(invoiceId) {
 
   const itemRows = (items || []).map((item, idx) => `
     <tr>
-      <td>${idx + 1}</td>
-      <td>${escapeHtml(item.description)}</td>
-      <td>${escapeHtml(item.hsn_code || '')}</td>
-      <td>${item.quantity}</td>
-      <td>${escapeHtml(item.unit || '')}</td>
-      <td>${currency}${formatNumber(item.unit_price)}</td>
-      <td>${currency}${formatNumber(item.amount)}</td>
+      <td style="text-align:center;">${idx + 1}</td>
+      <td style="text-align:left;white-space:pre-wrap;">${escapeHtml(item.description)}</td>
+      <td style="text-align:center;">${escapeHtml(item.hsn_code || '')}</td>
+      <td style="text-align:center;">${item.quantity}</td>
+      <td style="text-align:center;">${escapeHtml(item.unit || '')}</td>
+      <td style="text-align:right;">${currency}${formatNumber(item.unit_price)}</td>
+      <td style="text-align:right;font-weight:600;">${currency}${formatNumber(item.amount)}</td>
     </tr>
   `).join('');
 
@@ -109,13 +109,13 @@ async function showInvoicePreview(invoiceId) {
     <table>
       <thead>
         <tr>
-          <th>#</th>
-          <th>Description</th>
-          <th>HSN/SAC</th>
-          <th>Qty</th>
-          <th>Unit</th>
-          <th>Rate</th>
-          <th>Amount</th>
+          <th style="width:5%;text-align:center;">#</th>
+          <th style="width:35%;text-align:left;">Description</th>
+          <th style="width:12%;text-align:center;">HSN/SAC</th>
+          <th style="width:8%;text-align:center;">Qty</th>
+          <th style="width:8%;text-align:center;">Unit</th>
+          <th style="width:16%;text-align:right;">Rate</th>
+          <th style="width:16%;text-align:right;">Amount</th>
         </tr>
       </thead>
       <tbody>
