@@ -1,9 +1,9 @@
 // ============================================================
 // SERVICE WORKER — Network-First with Versioned Cache
-// Version: v20260927.08
+// Version: v20261001.02
 // ============================================================
 
-const CACHE_VERSION = 'v20260927.08';
+const CACHE_VERSION = 'v20261001.02';
 const CACHE_NAME = `inv-app-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {

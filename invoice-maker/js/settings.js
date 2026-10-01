@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // COMPANY SETTINGS - Isolated Per User
 // Logo, address, etc. saved per client ID
 // ============================================
@@ -53,7 +53,7 @@ function populateSettingsForm() {
   document.getElementById('s-upi').value = s.upi_id || '';
   document.getElementById('s-prefix').value = s.invoice_prefix || 'INV';
   document.getElementById('s-gst-rate').value = s.default_gst_rate || 18;
-  document.getElementById('s-currency').value = s.currency_symbol || '₹';
+  document.getElementById('s-currency').value = s.currency_symbol || 'â‚¹';
   document.getElementById('s-terms').value = s.default_terms || '';
 
   const preview = document.getElementById('logo-preview');
@@ -105,7 +105,7 @@ async function saveSettings(e) {
     upi_id: document.getElementById('s-upi').value,
     invoice_prefix: document.getElementById('s-prefix').value || 'INV',
     default_gst_rate: parseFloat(document.getElementById('s-gst-rate').value) || 18,
-    currency_symbol: document.getElementById('s-currency').value || '₹',
+    currency_symbol: document.getElementById('s-currency').value || 'â‚¹',
     default_terms: document.getElementById('s-terms').value,
     logo_base64: state.settings?.logo_base64 || '',
     updated_at: new Date().toISOString()
@@ -199,7 +199,7 @@ async function saveOnboardingSettings(e) {
 
     showToast("Company profile saved! Let's create your invoice.", 'success');
     closeOnboardingModal();
-    startNewInvoice();
+    if (typeof _openNewInvoiceForm === 'function') _openNewInvoiceForm(); else startNewInvoice();
   } catch (err) {
     showToast('Failed to save profile.', 'error');
   }
@@ -379,8 +379,8 @@ function disconnectSupabase() {
 
 function copySupabaseSetupSQL() {
   const sql = `-- ============================================================
--- Invoice Maker — Supabase Database Setup
--- Run this in your Supabase SQL Editor (Dashboard → SQL Editor)
+-- Invoice Maker â€” Supabase Database Setup
+-- Run this in your Supabase SQL Editor (Dashboard â†’ SQL Editor)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS company_settings (
@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS company_settings (
   upi_id TEXT DEFAULT '',
   default_gst_rate NUMERIC DEFAULT 18,
   invoice_prefix TEXT DEFAULT 'INV',
-  currency_symbol TEXT DEFAULT '₹',
+  currency_symbol TEXT DEFAULT 'â‚¹',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id)
@@ -480,4 +480,5 @@ CREATE POLICY "Users can delete own invoice items" ON invoice_items FOR DELETE U
     showToast('Clipboard not supported in this browser. Open supabase-setup.sql.', 'info');
   }
 }
+
 

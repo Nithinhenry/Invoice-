@@ -128,10 +128,24 @@ function onDocTypeChange() {
 async function startNewInvoice() {
   try {
     if (!isCompanyProfileComplete()) {
+      // Show onboarding modal but allow skipping
       showOnboardingModal();
       return;
     }
+    _openNewInvoiceForm();
+  } catch (err) {
+    console.error(err);
+    showToast('Error starting new invoice: ' + err.message, 'error');
+  }
+}
 
+function skipOnboardingAndCreateInvoice() {
+  closeOnboardingModal();
+  _openNewInvoiceForm();
+}
+
+function _openNewInvoiceForm() {
+  try {
     state.currentInvoiceId = null;
     document.getElementById('invoice-form-title').textContent = 'New Document';
     document.getElementById('invoice-form-subtitle').textContent = 'Create a professional quotation or invoice';
@@ -145,6 +159,10 @@ async function startNewInvoice() {
     document.getElementById('inv-subject').value = '';
     document.getElementById('inv-opener').value = '';
     document.getElementById('inv-closer').value = '';
+
+    // Ensure cgst_sgst is checked (default)
+    const defaultGstRadio = document.querySelector('input[name="gst-type"][value="cgst_sgst"]');
+    if (defaultGstRadio) defaultGstRadio.checked = true;
 
     onDocTypeChange();
 
@@ -165,7 +183,6 @@ async function startNewInvoice() {
     // Get next invoice number
     const prefix = state.settings?.invoice_prefix || 'INV';
     const year = new Date().getFullYear();
-
     const count = (Array.isArray(state.invoices) ? state.invoices.length : 0) + 1;
     const invNumEl = document.getElementById('inv-number');
     if (invNumEl) invNumEl.value = `${prefix}-${year}-${String(count).padStart(4, '0')}`;
@@ -178,9 +195,13 @@ async function startNewInvoice() {
     navigateTo('invoice-form');
     const formNavItem = document.querySelector('.nav-item[data-view="invoice-form"]');
     if (formNavItem) formNavItem.classList.add('active');
+
+    if (!isCompanyProfileComplete()) {
+      showToast('Tip: Go to Settings to set your company name for professional invoices.', 'info');
+    }
   } catch (err) {
-    console.error(err);
-    alert('Error starting new invoice: ' + err.message + '\n' + err.stack);
+    console.error('_openNewInvoiceForm error:', err);
+    showToast('Error opening invoice form: ' + err.message, 'error');
   }
 }
 
@@ -294,11 +315,21 @@ async function saveInvoice(e) {
   if (e) e.preventDefault();
 
   const btn = document.getElementById('save-invoice-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Saving...';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+  }
 
-  const gstType = document.querySelector('input[name="gst-type"]:checked').value;
-  const gstRate = parseFloat(document.getElementById('inv-gst-rate').value);
+  // Get GST type safely
+  const gstTypeEl = document.querySelector('input[name="gst-type"]:checked');
+  if (!gstTypeEl) {
+    showToast('Please select a GST type', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Invoice'; }
+    return null;
+  }
+
+  const gstType = gstTypeEl.value;
+  const gstRate = parseFloat(document.getElementById('inv-gst-rate').value) || 0;
   const discount = parseFloat(document.getElementById('inv-discount').value) || 0;
   const items = getItemsFromForm();
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -311,7 +342,7 @@ async function saveInvoice(e) {
   const total = taxableAmount + gstAmount;
 
   const invoiceData = {
-    user_id: state.user?.id,
+    user_id: state.user?.id || 'guest',
     document_type: document.getElementById('inv-doc-type').value || 'QUOTATION',
     specifications: document.getElementById('inv-specs').value,
     subject: document.getElementById('inv-subject').value,
@@ -344,9 +375,12 @@ async function saveInvoice(e) {
     invoiceData.id = invoiceId;
     invoiceData.items = items;
 
+    if (!Array.isArray(state.invoices)) state.invoices = [];
+
     if (state.currentInvoiceId) {
       const idx = state.invoices.findIndex(i => i.id === state.currentInvoiceId);
       if (idx >= 0) state.invoices[idx] = invoiceData;
+      else state.invoices.unshift(invoiceData);
     } else {
       state.invoices.unshift(invoiceData);
     }
@@ -384,15 +418,20 @@ async function saveInvoice(e) {
       }
     }
 
-    showToast('Invoice saved successfully & synced to cloud!', 'success');
+    showToast('Invoice saved successfully!', 'success');
 
-    btn.disabled = false;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Invoice';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Invoice';
+    }
     return invoiceId;
   } catch (err) {
+    console.error('saveInvoice error:', err);
     showToast('Failed to save invoice: ' + (err.message || 'Storage error'), 'error');
-    btn.disabled = false;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Invoice';
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Invoice';
+    }
     return null;
   }
 }

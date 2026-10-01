@@ -104,7 +104,7 @@
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" onclick="closeOnboardingModal()">Cancel</button>
+        <button type="button" class="btn btn-secondary" onclick="skipOnboardingAndCreateInvoice()">Skip for now</button>
         <button type="submit" class="btn btn-primary" id="ob-save-btn">Save & Continue</button>
       </div>
     </form>
@@ -707,6 +707,7 @@
                 <label class="form-label">Terms & Conditions</label>
                 <textarea class="form-textarea" id="inv-terms" rows="2" placeholder="Payment terms, conditions, etc."></textarea>
               </div>
+            </div>
             <div class="form-group">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
                 <label class="form-label" style="margin-bottom:0;">Closing Message & Sign-off (Closer)</label>
@@ -770,15 +771,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 <!-- APP SCRIPTS (separate files) -->
-<script src="js/config.js?v=20260927.06"></script>
-<script src="js/utils.js?v=20260927.06"></script>
-<script src="js/auth.js?v=20260927.06"></script>
-<script src="js/settings.js?v=20260927.06"></script>
-<script src="js/invoices.js?v=20260927.06"></script>
-<script src="js/items.js?v=20260927.06"></script>
-<script src="js/preview.js?v=20260927.06"></script>
-<script src="js/pdf-templates.js?v=20260927.06"></script>
-<script src="js/app.js?v=20260927.06"></script>
+<script src="js/config.js?v=20261001.01"></script>
+<script src="js/utils.js?v=20261001.01"></script>
+<script src="js/auth.js?v=20261001.01"></script>
+<script src="js/settings.js?v=20261001.01"></script>
+<script src="js/invoices.js?v=20261001.01"></script>
+<script src="js/items.js?v=20261001.01"></script>
+<script src="js/preview.js?v=20261001.01"></script>
+<script src="js/pdf-templates.js?v=20261001.01"></script>
+<script src="js/app.js?v=20261001.01"></script>
 
 <script>
 async function quickGuestAccess() {
