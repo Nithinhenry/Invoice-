@@ -218,7 +218,8 @@ function duplicateInvoice(invoiceId) {
   document.getElementById('inv-name').value = original.invoice_name ? original.invoice_name + ' (Copy)' : '';
   document.getElementById('inv-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('inv-due-date').value = '';
-  document.getElementById('inv-status').value = 'draft';
+  const statusEl = document.getElementById('inv-status');
+  if (statusEl) statusEl.value = 'draft';
   document.getElementById('inv-doc-type').value = original.document_type || 'QUOTATION';
   document.getElementById('inv-subject').value = original.subject || '';
   document.getElementById('inv-opener').value = original.opener || '';
@@ -273,7 +274,8 @@ async function editInvoice(invoiceId) {
   document.getElementById('inv-number').value = invoice.invoice_number;
   document.getElementById('inv-date').value = invoice.invoice_date;
   document.getElementById('inv-due-date').value = invoice.due_date || '';
-  document.getElementById('inv-status').value = invoice.status;
+  const statusEl = document.getElementById('inv-status');
+  if (statusEl) statusEl.value = invoice.status;
   document.getElementById('inv-client-name').value = invoice.client_name;
   document.getElementById('inv-client-address').value = invoice.client_address || '';
   document.getElementById('inv-client-gstin').value = invoice.client_gstin || '';
@@ -366,7 +368,7 @@ async function saveInvoice(e) {
     total: parseFloat(total.toFixed(2)),
     notes: document.getElementById('inv-notes').value,
     terms: document.getElementById('inv-terms').value,
-    status: document.getElementById('inv-status').value,
+    status: document.getElementById('inv-status')?.value || 'draft',
     updated_at: new Date().toISOString()
   };
 
